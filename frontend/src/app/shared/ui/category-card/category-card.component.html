@@ -1,0 +1,22 @@
+<button
+  type="button"
+  class="category-card"
+  [class.category-card--active]="active()"
+  [style.--category-accent]="palette().accent"
+  [style.--category-surface]="palette().surface"
+  [style.--category-ring]="palette().ring"
+  [style.--category-shadow]="palette().shadow"
+  (click)="selected.emit()"
+>
+  <div class="category-card__icon" aria-hidden="true">{{ icon() }}</div>
+  <div class="category-card__content">
+    <h3 class="category-card__title">{{ title() }}</h3>
+    @if (subtitle(); as details) {
+      <p class="category-card__subtitle">{{ details }}</p>
+    }
+  </div>
+  <span class="category-card__accent" aria-hidden="true"></span>
+  @if (active()) {
+    <span class="category-card__state">נבחר</span>
+  }
+</button>

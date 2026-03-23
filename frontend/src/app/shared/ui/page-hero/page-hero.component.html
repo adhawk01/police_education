@@ -1,0 +1,21 @@
+<header class="page-hero" dir="rtl">
+  <div class="page-hero__content">
+    @if (eyebrow()) {
+      <p class="page-hero__eyebrow">{{ eyebrow() }}</p>
+    }
+
+    <h1 class="page-hero__title">{{ title() }}</h1>
+
+    @if (summary()) {
+      <p class="page-hero__summary">{{ summary() }}</p>
+    }
+
+    @if (subtitle()) {
+      <p class="page-hero__subtitle">{{ subtitle() }}</p>
+    }
+  </div>
+
+  <div class="page-hero__actions">
+    <ng-content select="[pageHeroActions]"></ng-content>
+  </div>
+</header>

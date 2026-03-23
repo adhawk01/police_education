@@ -1,0 +1,62 @@
+<article class="search-result-card" dir="rtl">
+  <div
+    class="search-result-card__accent"
+    [style.background]="item().marker_color || '#2563eb'"
+    aria-hidden="true"
+  ></div>
+
+  <div class="search-result-card__media">
+    @if (item().primary_image_url; as imageUrl) {
+      <img [src]="imageUrl" [alt]="item().title" loading="lazy" />
+    } @else {
+      <div class="search-result-card__placeholder" aria-hidden="true"></div>
+    }
+  </div>
+
+  <div class="search-result-card__body">
+    <div class="search-result-card__topline">
+      <div class="search-result-card__categories">
+        <span
+          class="search-result-card__category"
+          *ngFor="let category of item().categories"
+          [style.--category-color]="category.color_code || '#2563eb'"
+        >
+          {{ category.name }}
+        </span>
+      </div>
+
+      <div class="search-result-card__status">
+        @if (item().is_featured) {
+          <span class="search-result-card__featured">מומלץ</span>
+        }
+
+        <span
+          class="search-result-card__favorite-icon"
+          title="הוספה למועדפים"
+          aria-label="הוספה למועדפים"
+        >
+          ♡
+        </span>
+      </div>
+    </div>
+
+    <h2 class="search-result-card__title">{{ item().title }}</h2>
+    <p class="search-result-card__description">{{ description() }}</p>
+
+    <div class="search-result-card__badges" *ngIf="item().badges.length">
+      <span class="search-result-card__badge" *ngFor="let badge of item().badges">
+        {{ badge.name }}
+      </span>
+    </div>
+
+    <div class="search-result-card__meta" *ngIf="metadataChips().length">
+      <span class="search-result-card__meta-chip" *ngFor="let chip of metadataChips()">
+        {{ chip }}
+      </span>
+    </div>
+
+    <div class="search-result-card__actions">
+      <button type="button" class="search-result-card__details">פרטים</button>
+    </div>
+  </div>
+</article>

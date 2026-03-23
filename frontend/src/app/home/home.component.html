@@ -1,0 +1,217 @@
+<div class="home-page" dir="rtl">
+  <app-page-hero
+    eyebrow="מערכת ידע ארצית"
+    title="משטרת ישראל - מחלקת חינוך"
+    subtitle="פלטפורמה מרכזית להצגת יוזמות, תכנים וכלים מקצועיים לפעילות חינוכית, ערכית וקהילתית."
+  ></app-page-hero>
+
+  <section class="panel smart-search" [class.smart-search--collapsed]="!showSmartSearch">
+    <div class="smart-search__head">
+      <div class="smart-search__heading">
+        <h2 class="smart-search__title">פילטור תוצאות</h2>
+      </div>
+
+      <div class="smart-search__actions">
+        <div class="smart-search__primary-actions">
+          <a class="smart-search__cta-btn smart-search__cta-btn--inline" routerLink="/search">חיפוש מתקדם</a>
+
+          <button
+            type="button"
+            class="smart-search__search-btn"
+            aria-label="בצע חיפוש"
+            title="בצע חיפוש"
+            (click)="executeSearch()"
+          >
+            <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+              <path d="M10.5 4a6.5 6.5 0 1 0 4.03 11.6l4.43 4.44 1.41-1.42-4.43-4.43A6.5 6.5 0 0 0 10.5 4Zm0 2a4.5 4.5 0 1 1 0 9 4.5 4.5 0 0 1 0-9Z" />
+            </svg>
+          </button>
+        </div>
+
+        <button
+          type="button"
+          class="smart-search__disclosure"
+          [class.smart-search__disclosure--closed]="!showSmartSearch"
+          [attr.aria-label]="showSmartSearch ? 'הסתר פילטרים' : 'הצג פילטרים'"
+          [attr.aria-expanded]="showSmartSearch"
+          [title]="showSmartSearch ? 'הסתר פילטרים' : 'הצג פילטרים'"
+          (click)="toggleSmartSearch()"
+        >
+          <span class="smart-search__disclosure-chevron" aria-hidden="true"></span>
+        </button>
+      </div>
+    </div>
+
+    <div class="search-content" *ngIf="showSmartSearch">
+      <div class="search-grid">
+        <div class="field field--search">
+          <label for="searchText">חיפוש חופשי</label>
+          <div class="field__input-wrap">
+            <input
+              id="searchText"
+              type="text"
+              [(ngModel)]="searchText"
+              (keyup.enter)="executeSearch()"
+              placeholder="לדוגמה: בתי ספר, קהילה, מנהיגות נוער"
+            />
+
+            @if (searchText.trim()) {
+              <button
+                type="button"
+                class="field__clear-btn"
+                aria-label="נקה חיפוש"
+                title="נקה חיפוש"
+                (click)="clearSearchText()"
+              >
+                ×
+              </button>
+            }
+          </div>
+        </div>
+
+        <div class="field field--region">
+          <label for="region">אזור</label>
+          <select id="region" [(ngModel)]="selectedRegion">
+            <option *ngFor="let region of regions" [value]="region">
+              {{ region }}
+            </option>
+          </select>
+        </div>
+
+        <div class="field field--content-type">
+          <label for="contentType">סוג תוכן</label>
+          <select id="contentType" [(ngModel)]="selectedContentType">
+            <option *ngFor="let option of contentTypeOptions" [value]="option">
+              {{ option }}
+            </option>
+          </select>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="categories-section">
+    <app-section-header
+      title="קטגוריות"
+      note="אפשר לבחור כמה תחומי תוכן במקביל"
+    ></app-section-header>
+
+    @if (categoriesLoading) {
+      <div class="panel categories-feedback">טוען קטגוריות...</div>
+    } @else if (categoriesError) {
+      <div class="panel categories-feedback categories-feedback--error">
+        <p>{{ categoriesError }}</p>
+        <button type="button" class="retry-button" (click)="loadCategories()">נסה שוב</button>
+      </div>
+    } @else {
+      <div class="categories-grid">
+        <app-category-card
+          *ngFor="let category of categoryCards; trackBy: trackById"
+          [title]="category.title"
+          [subtitle]="category.subtitle"
+          [icon]="category.emoji"
+          [color]="category.color"
+          [active]="selectedCategoryIds.includes(category.id)"
+          (selected)="applyCategoryFilter(category.id)"
+        ></app-category-card>
+      </div>
+    }
+  </section>
+
+  <section class="map-section">
+    <div class="map-layout">
+      <article #mapBoard class="map-board panel">
+        <div class="map-board__header">
+          <div>
+            <h3 class="map-board__title">מפת פעילויות על פי הסינון שבחרת</h3>
+          </div>
+
+          <div class="map-board__icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" focusable="false">
+              <path d="M12 2 4 5v13l8 4 8-4V5l-8-3Zm0 2.2 5.8 2.2L12 8.6 6.2 6.4 12 4.2Zm-6 3.8 5 1.9v9.3l-5-2.5V8Zm7 11.2V9.9l5-1.9v8.7l-5 2.5Z" />
+            </svg>
+          </div>
+        </div>
+        <div class="map-canvas" aria-label="מפת ישראל">
+          <div #mapContainer class="map-canvas__map" aria-label="מפת ישראל אינטראקטיבית"></div>
+
+          <div class="map-canvas__overlay">
+            <span class="map-canvas__badge">ישראל</span>
+            <span class="map-canvas__badge map-canvas__badge--muted">OpenStreetMap</span>
+          </div>
+        </div>
+
+        <div class="map-color-legend" *ngIf="mapColorLegendItems.length">
+          <div class="map-color-legend__list">
+            <div
+              class="map-color-legend__item"
+              *ngFor="let item of mapColorLegendItems; trackBy: trackById"
+            >
+              <span
+                class="map-color-legend__swatch"
+                [style.background]="item.color"
+                aria-hidden="true"
+              ></span>
+              <span class="map-color-legend__label">{{ item.label }}</span>
+              <span class="map-color-legend__count">({{ item.count }})</span>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <div class="map-sidepanel panel" [style.height.px]="mapSidepanelHeight">
+        @if (mapPanelItems.length) {
+          <div #mapSidepanelList class="map-sidepanel__list">
+            <div
+              #mapSidepanelItem
+              class="map-sidepanel__entry"
+              *ngFor="let item of mapPanelItems; trackBy: trackById"
+              [attr.data-item-id]="item.id"
+            >
+              <app-map-item-card
+                [item]="item"
+                [active]="activeMapItemId === item.id"
+                (hovered)="hoverMapItem(item.id)"
+                (unhovered)="clearHoveredMapItem(item.id)"
+                (selected)="focusMapItem(item.id)"
+              ></app-map-item-card>
+            </div>
+          </div>
+        } @else {
+          <div class="map-sidepanel__empty">לא נמצאו פריטים תואמים למפה לפי הסינון הנוכחי.</div>
+        }
+      </div>
+    </div>
+  </section>
+
+  <section class="featured-section">
+    <app-section-header
+      title="יוזמות מומלצות"
+      note="מוצג לפי הסינון הנוכחי"
+    ></app-section-header>
+
+    <div class="featured-grid" *ngIf="filteredFeaturedItems.length; else emptyState">
+      <div class="featured-grid__item" *ngFor="let item of filteredFeaturedItems; trackBy: trackById">
+        <app-featured-card
+          [title]="item.title"
+          [description]="item.description"
+          [category]="item.category"
+          [region]="item.region"
+          [tags]="item.tags"
+          [isFeatured]="item.isFeatured"
+          [active]="isSelectedMapItem(item.id)"
+          [hoveredState]="isHoveredMapItem(item.id)"
+          (hovered)="hoverMapItem(item.id)"
+          (unhovered)="clearHoveredMapItem(item.id)"
+          (selected)="focusMapItem(item.id)"
+        ></app-featured-card>
+      </div>
+    </div>
+
+    <ng-template #emptyState>
+      <div class="panel empty-state">
+        לא נמצאו תוצאות לפי הסינון הנוכחי.
+      </div>
+    </ng-template>
+  </section>
+</div>

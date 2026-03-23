@@ -1,0 +1,139 @@
+<section class="search-filters panel" dir="rtl">
+  <div class="search-filters__header">
+    <div>
+      <p class="search-filters__eyebrow">סינון</p>
+      <h2 class="search-filters__title">חיפוש ממוקד</h2>
+    </div>
+    <div class="search-filters__header-actions">
+      <button type="button" class="search-filters__apply search-filters__apply--compact" (click)="apply.emit()">
+        החל סינון
+      </button>
+
+      <button
+        type="button"
+        class="search-filters__clear-compact"
+        aria-label="נקה הכול"
+        title="נקה הכול"
+        (click)="clear.emit()"
+      >
+        ×
+      </button>
+
+      @if (loading()) {
+        <span class="search-filters__loading">טוען...</span>
+      }
+    </div>
+  </div>
+
+  <form class="search-filters__form" [formGroup]="form()" (ngSubmit)="apply.emit()">
+    <div class="search-filters__grid">
+      <label class="search-filters__field search-filters__field--full">
+        <span>חיפוש חופשי</span>
+        <div class="search-filters__input-wrap">
+          <input type="text" formControlName="q" placeholder="חיפוש לפי שם, תיאור, עיר או תחום" />
+
+          @if (form().get('q')?.value?.trim()) {
+            <button
+              type="button"
+              class="search-filters__clear-text-btn"
+              aria-label="נקה חיפוש"
+              title="נקה חיפוש"
+              (click)="clearSearchText()"
+            >
+              ×
+            </button>
+          }
+        </div>
+      </label>
+
+      <label class="search-filters__field">
+        <span>אזור</span>
+        <select formControlName="area_id">
+          <option value="">כל האזורים</option>
+          <option *ngFor="let area of filters()?.areas ?? []; trackBy: trackById" [value]="area.id">
+            {{ area.name }}
+          </option>
+        </select>
+      </label>
+
+      <label class="search-filters__field">
+        <span>עיר</span>
+        <select formControlName="city">
+          <option value="">כל הערים</option>
+          <option *ngFor="let city of availableCities(); trackBy: trackById" [value]="city.id">
+            {{ city.name }}
+          </option>
+        </select>
+      </label>
+
+      <label class="search-filters__field">
+        <span>סטטוס</span>
+        <select formControlName="status">
+          <option value="">כל הסטטוסים</option>
+          <option *ngFor="let option of filters()?.statuses ?? []; trackBy: trackByValue" [value]="option.value">
+            {{ option.label }}
+          </option>
+        </select>
+      </label>
+
+      <label class="search-filters__field">
+        <span>סוג פעילות</span>
+        <select formControlName="activity_type">
+          <option value="">כל הסוגים</option>
+          <option *ngFor="let option of filters()?.activity_types ?? []; trackBy: trackByValue" [value]="option.value">
+            {{ option.label }}
+          </option>
+        </select>
+      </label>
+
+      <label class="search-filters__field">
+        <span>יום בשבוע</span>
+        <select formControlName="day_of_week">
+          <option value="">כל הימים</option>
+          <option *ngFor="let option of filters()?.days_of_week ?? []; trackBy: trackByValue" [value]="option.value">
+            {{ option.label }}
+          </option>
+        </select>
+      </label>
+
+      <label class="search-filters__field search-filters__field--full">
+        <span>שעות פעילות</span>
+        <select formControlName="time_of_day">
+          <option value="">כל הזמנים</option>
+          <option *ngFor="let option of filters()?.time_of_day ?? []; trackBy: trackByValue" [value]="option.value">
+            {{ option.label }}
+          </option>
+        </select>
+      </label>
+    </div>
+
+    <div class="search-filters__group">
+      <div class="search-filters__group-header">
+        <h3>קטגוריות</h3>
+        <p>אפשר לבחור כמה תחומים במקביל</p>
+      </div>
+
+      <div class="search-filters__chips">
+        <button
+          *ngFor="let category of filters()?.categories ?? []; trackBy: trackByCategory"
+          type="button"
+          class="search-filters__chip"
+          [class.search-filters__chip--active]="isMultiSelected('category_ids', category.id)"
+          (click)="toggleMultiValue('category_ids', category.id, true)"
+        >
+          <span
+            class="search-filters__chip-dot"
+            [style.background]="category.color || '#2563eb'"
+            aria-hidden="true"
+          ></span>
+          {{ category.name }}
+        </button>
+      </div>
+    </div>
+
+    <div class="search-filters__actions">
+      <button type="submit" class="search-filters__apply">החל סינון</button>
+      <button type="button" class="search-filters__clear" (click)="clear.emit()">נקה הכול</button>
+    </div>
+  </form>
+</section>
