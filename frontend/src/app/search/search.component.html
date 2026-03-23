@@ -1,0 +1,193 @@
+<section class="search-page" dir="rtl">
+  <app-page-hero
+    eyebrow="חיפוש מתקדם"
+    title="תוצאות חיפוש"
+    [summary]="'נמצאו ' + totalCount + ' תוצאות רלוונטיות'"
+    subtitle="אפשר לחדד את החיפוש, לשנות מיון ולעבור בין היוזמות שמתאימות לכם."
+  >
+    <div pageHeroActions class="search-page__hero-actions">
+      <a class="search-page__home-btn" routerLink="/" aria-label="חזרה לעמוד הבית" title="חזרה לעמוד הבית">
+        🏠
+      </a>
+
+      <div class="search-page__view-switch" aria-label="תצוגת תוצאות">
+        <button
+          type="button"
+          class="search-page__view-tab"
+          [class.search-page__view-tab--active]="currentView === 'results'"
+          (click)="setView('results')"
+        >
+          תוצאות
+        </button>
+        <button
+          type="button"
+          class="search-page__view-tab"
+          [class.search-page__view-tab--active]="currentView === 'map'"
+          (click)="setView('map')"
+        >
+          מפה
+        </button>
+      </div>
+    </div>
+  </app-page-hero>
+
+  @if (filtersError) {
+    <div class="search-page__notice search-page__notice--error">{{ filtersError }}</div>
+  }
+
+  <div class="search-page__mobile-actions">
+    <button type="button" class="search-page__mobile-filter-btn" (click)="toggleMobileFilters()">
+      {{ mobileFiltersOpen ? 'הסתר סינון' : 'הצג סינון' }}
+    </button>
+  </div>
+
+  <div class="search-page__layout">
+    <aside #filtersSidebar class="search-page__sidebar" [class.search-page__sidebar--open]="mobileFiltersOpen">
+      <app-search-filters-sidebar
+        [form]="filterForm"
+        [filters]="filtersMetadata"
+        [availableCities]="availableCities"
+        [loading]="loadingFilters"
+        (apply)="applyFilters()"
+        (clear)="clearFilters()"
+      ></app-search-filters-sidebar>
+    </aside>
+
+    <section
+      class="search-page__results"
+      [class.search-page__results--constrained]="currentView === 'results' && resultsSectionHeight !== null"
+      [style.height.px]="currentView === 'results' ? resultsSectionHeight : null"
+    >
+      <div class="search-page__results-bar">
+        <p class="search-page__results-count">{{ totalCount }} תוצאות</p>
+
+        <label class="search-page__sort">
+          <span>מיון</span>
+          <select [ngModel]="sortBy" (ngModelChange)="changeSort($event)">
+            <option *ngFor="let option of sortOptions" [value]="option.value">
+              {{ option.label }}
+            </option>
+          </select>
+        </label>
+      </div>
+
+      @if (resultsError) {
+        <div class="search-page__notice search-page__notice--error">{{ resultsError }}</div>
+      }
+
+      @if (currentView === 'map') {
+        @if (loadingResults) {
+          <div class="search-page__map-loading panel">מעדכן את המפה לפי הסינון החדש...</div>
+        }
+
+        <section class="search-page__map-section">
+          <div class="map-layout">
+            <article #mapBoard class="map-board panel">
+              <div class="map-board__header">
+                <div>
+                  <h3 class="map-board__title">מפת תוצאות החיפוש</h3>
+                </div>
+
+                <div class="map-board__icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" focusable="false">
+                    <path d="M12 2 4 5v13l8 4 8-4V5l-8-3Zm0 2.2 5.8 2.2L12 8.6 6.2 6.4 12 4.2Zm-6 3.8 5 1.9v9.3l-5-2.5V8Zm7 11.2V9.9l5-1.9v8.7l-5 2.5Z" />
+                  </svg>
+                </div>
+              </div>
+
+              <div class="map-canvas" aria-label="מפת ישראל">
+                <div #mapContainer class="map-canvas__map" aria-label="מפת ישראל אינטראקטיבית"></div>
+
+                <div class="map-canvas__overlay">
+                  <span class="map-canvas__badge">ישראל</span>
+                  <span class="map-canvas__badge map-canvas__badge--muted">OpenStreetMap</span>
+                </div>
+              </div>
+
+              <div class="map-color-legend" *ngIf="mapColorLegendItems.length">
+                <div class="map-color-legend__list">
+                  <div
+                    class="map-color-legend__item"
+                    *ngFor="let item of mapColorLegendItems; trackBy: trackById"
+                  >
+                    <span
+                      class="map-color-legend__swatch"
+                      [style.background]="item.color"
+                      aria-hidden="true"
+                    ></span>
+                    <span class="map-color-legend__label">{{ item.label }}</span>
+                    <span class="map-color-legend__count">({{ item.count }})</span>
+                  </div>
+                </div>
+              </div>
+            </article>
+
+            <div class="map-sidepanel panel" [style.height.px]="mapSidepanelHeight">
+              @if (mapPanelCards.length) {
+                <div #mapSidepanelList class="map-sidepanel__list">
+                  <div
+                    #mapSidepanelItem
+                    class="map-sidepanel__entry"
+                    *ngFor="let item of mapPanelCards; trackBy: trackByMapPanelCard"
+                    [attr.data-item-id]="item.id"
+                  >
+                    <app-map-item-card
+                      [item]="item"
+                      [active]="activeMapItemId === item.id"
+                      [showFavoriteIcon]="true"
+                      (hovered)="hoverMapItem(item.id)"
+                      (unhovered)="clearHoveredMapItem(item.id)"
+                      (selected)="focusMapItem(item.id)"
+                    ></app-map-item-card>
+                  </div>
+                </div>
+              } @else {
+                <div class="map-sidepanel__empty">לא נמצאו תוצאות עם מיקום להצגה על המפה.</div>
+              }
+            </div>
+          </div>
+        </section>
+      } @else if (loadingResults) {
+        <div class="search-page__skeleton-list">
+          <div class="search-page__skeleton-card" *ngFor="let placeholder of loadingPlaceholders">
+            <div class="search-page__skeleton-media"></div>
+            <div class="search-page__skeleton-lines">
+              <span></span>
+              <span></span>
+              <span></span>
+            </div>
+          </div>
+        </div>
+      } @else if (results.length) {
+        <div class="search-page__results-list search-page__results-list--scrollable">
+          <app-search-result-card
+            *ngFor="let item of results; trackBy: trackByResult"
+            [item]="item"
+          ></app-search-result-card>
+        </div>
+
+        @if (totalPages > 1) {
+          <nav class="search-page__pagination" aria-label="דפדוף בין תוצאות">
+            <button type="button" (click)="goToPage(page - 1)" [disabled]="page === 1">הקודם</button>
+
+            <button
+              type="button"
+              *ngFor="let currentPage of visiblePages"
+              [class.search-page__page-btn--active]="currentPage === page"
+              (click)="goToPage(currentPage)"
+            >
+              {{ currentPage }}
+            </button>
+
+            <button type="button" (click)="goToPage(page + 1)" [disabled]="page === totalPages">הבא</button>
+          </nav>
+        }
+      } @else {
+        <div class="search-page__empty panel">
+          <h2>לא נמצאו תוצאות מתאימות</h2>
+          <p>נסו להסיר חלק מהסינונים או לשנות את מילות החיפוש.</p>
+        </div>
+      }
+    </section>
+  </div>
+</section>

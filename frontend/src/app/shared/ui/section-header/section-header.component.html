@@ -1,0 +1,28 @@
+<div class="section-head">
+	<div>
+		<h2 class="section-title">{{ title() }}</h2>
+		<p class="section-note">{{ note() }}</p>
+	</div>
+
+	<div class="section-actions">
+		@if (iconActionLabel(); as label) {
+			<button
+				type="button"
+				class="icon-btn"
+				[attr.aria-label]="label"
+				[title]="label"
+				(click)="iconActionTriggered.emit()"
+			>
+				<svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+					<path d="M10.5 4a6.5 6.5 0 1 0 4.03 11.6l4.43 4.44 1.41-1.42-4.43-4.43A6.5 6.5 0 0 0 10.5 4Zm0 2a4.5 4.5 0 1 1 0 9 4.5 4.5 0 0 1 0-9Z" />
+				</svg>
+			</button>
+		}
+
+		@if (actionLabel(); as label) {
+			<button type="button" class="toggle-btn" (click)="actionTriggered.emit()">
+				{{ label }}
+			</button>
+		}
+	</div>
+</div>

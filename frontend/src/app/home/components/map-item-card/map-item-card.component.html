@@ -1,0 +1,44 @@
+<button
+  type="button"
+  class="map-item-card"
+  [class.map-item-card--featured]="isFeatured()"
+  [class.map-item-card--active]="active()"
+  (mouseenter)="hovered.emit()"
+  (mouseleave)="unhovered.emit()"
+  (focus)="hovered.emit()"
+  (blur)="unhovered.emit()"
+  (click)="selected.emit()"
+>
+  @if (showFavoriteIcon()) {
+    <span
+      class="map-item-card__favorite-icon"
+      title="הוספה למועדפים"
+      aria-label="הוספה למועדפים"
+    >
+      ♡
+    </span>
+  }
+
+  @if (item().primary_image_url; as imageUrl) {
+    <img
+      class="map-item-card__image"
+      [src]="imageUrl"
+      [alt]="item().title"
+      loading="lazy"
+    />
+  } @else {
+    <div class="map-item-card__image map-item-card__image--placeholder" aria-hidden="true"></div>
+  }
+
+  <div class="map-item-card__content">
+    <h3 class="map-item-card__title">{{ item().title }}</h3>
+
+    @if (item().address; as address) {
+      <p class="map-item-card__address">{{ address }}</p>
+    }
+
+    <div class="map-item-card__description-wrap">
+      <p class="map-item-card__description">{{ description() }}</p>
+    </div>
+  </div>
+</button>
