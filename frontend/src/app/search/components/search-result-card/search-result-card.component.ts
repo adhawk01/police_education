@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, computed, input } from '@angular/core';
+import { Component, computed, input, output } from '@angular/core';
 import { SearchResultItem } from '../../search.models';
 
 @Component({
@@ -11,6 +11,7 @@ import { SearchResultItem } from '../../search.models';
 })
 export class SearchResultCardComponent {
   readonly item = input.required<SearchResultItem>();
+  readonly selected = output<void>();
 
   readonly metadataChips = computed(() => {
     const metadata = this.item().metadata;
@@ -35,4 +36,8 @@ export class SearchResultCardComponent {
 
     return this.item().short_description?.trim() || 'ללא תיאור זמין';
   });
+
+  openDetails(): void {
+    this.selected.emit();
+  }
 }

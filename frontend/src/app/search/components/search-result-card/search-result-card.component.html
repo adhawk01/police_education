@@ -1,4 +1,12 @@
-<article class="search-result-card" dir="rtl">
+<article
+  class="search-result-card"
+  dir="rtl"
+  role="button"
+  tabindex="0"
+  (click)="openDetails()"
+  (keydown.enter)="openDetails()"
+  (keydown.space)="openDetails(); $event.preventDefault()"
+>
   <div
     class="search-result-card__accent"
     [style.background]="item().marker_color || '#2563eb'"
@@ -56,7 +64,7 @@
     </div>
 
     <div class="search-result-card__actions">
-      <button type="button" class="search-result-card__details">פרטים</button>
+      <button type="button" class="search-result-card__details" (click)="openDetails(); $event.stopPropagation()">פרטים</button>
     </div>
   </div>
 </article>

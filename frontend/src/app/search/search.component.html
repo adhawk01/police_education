@@ -137,7 +137,7 @@
                       [showFavoriteIcon]="true"
                       (hovered)="hoverMapItem(item.id)"
                       (unhovered)="clearHoveredMapItem(item.id)"
-                      (selected)="focusMapItem(item.id)"
+                      (selected)="openContentDetails(item.id)"
                     ></app-map-item-card>
                   </div>
                 </div>
@@ -163,6 +163,7 @@
           <app-search-result-card
             *ngFor="let item of results; trackBy: trackByResult"
             [item]="item"
+            (selected)="openContentDetails(item.id)"
           ></app-search-result-card>
         </div>
 

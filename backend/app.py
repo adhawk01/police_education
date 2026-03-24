@@ -3,7 +3,7 @@ import os
 from flask import Flask
 from flask_cors import CORS
 
-from routes import auth_bp, home_bp, search_bp
+from routes import auth_bp, content_bp, home_bp, search_bp
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY', 'dev-secret-change-me')
@@ -12,6 +12,7 @@ app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 app.register_blueprint(home_bp)
 app.register_blueprint(search_bp)
 app.register_blueprint(auth_bp)
+app.register_blueprint(content_bp)
 
 CORS(
     app,
