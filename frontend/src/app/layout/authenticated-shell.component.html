@@ -1,0 +1,46 @@
+<div class="authenticated-shell" dir="rtl">
+  <header class="authenticated-shell__header">
+    <div class="authenticated-shell__bar">
+      <a class="authenticated-shell__brand" routerLink="/home">
+        <span class="authenticated-shell__brand-mark" aria-hidden="true">▣</span>
+        <span class="authenticated-shell__brand-text">מחלקת חינוך</span>
+      </a>
+
+      <nav class="authenticated-shell__nav" aria-label="ניווט ראשי">
+        <a
+          class="authenticated-shell__nav-link"
+          routerLink="/home"
+          routerLinkActive="authenticated-shell__nav-link--active"
+          [routerLinkActiveOptions]="{ exact: true }"
+        >
+          דף הבית
+        </a>
+        <a
+          class="authenticated-shell__nav-link"
+          routerLink="/search"
+          routerLinkActive="authenticated-shell__nav-link--active"
+        >
+          חיפוש מתקדם
+        </a>
+      </nav>
+
+      <div class="authenticated-shell__actions">
+        @if (displayName()) {
+          <span class="authenticated-shell__user" [title]="displayName()">{{ displayName() }}</span>
+        }
+
+        <button type="button" class="authenticated-shell__logout" [disabled]="isLoggingOut()" (click)="logout()">
+          {{ isLoggingOut() ? 'מתנתק...' : 'התנתקות' }}
+        </button>
+      </div>
+    </div>
+
+    @if (errorMessage()) {
+      <p class="authenticated-shell__error" role="alert">{{ errorMessage() }}</p>
+    }
+  </header>
+
+  <main class="authenticated-shell__content">
+    <router-outlet></router-outlet>
+  </main>
+</div>
