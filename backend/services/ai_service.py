@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
+
+logger = logging.getLogger(__name__)
 
 
 class AIServiceError(Exception):
@@ -32,7 +35,7 @@ class AIService:
         if not prompt:
             raise AIValidationError("prompt is required")
 
-        print(f">>> Prompt received from caller: {prompt}")
+        logger.info(f"Prompt received: {prompt}")
 
         if len(prompt) > self.MAX_PROMPT_CHARS:
             raise AIValidationError(f"prompt must be at most {self.MAX_PROMPT_CHARS} characters")
@@ -60,7 +63,7 @@ class AIService:
             method="POST",
         )
 
-        print(f">>> Calling OpenAI API (model={model}, prompt_len={len(prompt)})")
+        logger.info(f"Calling OpenAI API (model={model}, prompt_len={len(prompt)})")
         try:
             with urlopen(request, timeout=timeout_seconds) as response:
                 raw_response = response.read().decode("utf-8")
@@ -80,7 +83,7 @@ class AIService:
         answer = self._extract_answer_text(parsed)
         if not answer:
             raise AIServiceError("OpenAI response did not include answer text")
-        print(f">>> OpenAI answer received (answer_len={len(answer)})")
+        logger.info(f"OpenAI answer received (answer_len={len(answer)})")
         return answer
 
     @staticmethod

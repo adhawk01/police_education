@@ -1,7 +1,12 @@
 ﻿from pathlib import Path
 from dotenv import load_dotenv
 import os
+import logging
 import mysql.connector
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 base = Path.cwd()
 load_dotenv(base / '.env')
 required = ['DB_HOST', 'DB_PORT', 'DB_NAME', 'DB_USER', 'DB_PASSWORD']
@@ -25,9 +30,9 @@ try:
     cur = conn.cursor()
     for _ in cur.execute(sql, multi=True):
         pass
-    print('Migration applied successfully: ' + migration_path.name)
+    logger.info('Migration applied successfully: ' + migration_path.name)
 except mysql.connector.Error as exc:
-    print('Migration failed: ' + str(exc))
+    logger.error('Migration failed: ' + str(exc))
     raise
 finally:
     if conn is not None and conn.is_connected():

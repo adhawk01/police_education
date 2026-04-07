@@ -9,6 +9,8 @@ Methods:
     get_regions()        -> list of all regions for the filter bar
 """
 
+import logging
+
 try:
     # Works when backend/ is the active source root.
     from db import db_connection
@@ -16,19 +18,20 @@ except ImportError:
     # Works when the project root is the active source root.
     from backend.db import db_connection
 
+logger = logging.getLogger(__name__)
+
 
 class HomeRepository:
     """Read-only queries for the home page."""
 
     @staticmethod
-    def _print_sql_error(method_name: str, sql: str, error: Exception, params: tuple | None = None) -> None:
-        """Print clear debug information when a repository query fails."""
-        print(f"[HomeRepository.{method_name}] SQL failed")
-        print(f"Error: {error}")
+    def _log_sql_error(method_name: str, sql: str, error: Exception, params: tuple | None = None) -> None:
+        """Log clear debug information when a repository query fails."""
+        logger.error(f"[HomeRepository.{method_name}] SQL failed")
+        logger.error(f"Error: {error}")
         if params is not None:
-            print(f"Params: {params}")
-        print("SQL:")
-        print(sql.strip())
+            logger.error(f"Params: {params}")
+        logger.error(f"SQL: {sql.strip()}")
 
     # ------------------------------------------------------------------
     # Categories
@@ -73,7 +76,7 @@ class HomeRepository:
                 cursor.execute(sql)
                 return cursor.fetchall()
         except Exception as exc:
-            self._print_sql_error("get_categories", sql, exc)
+            self._log_sql_error("get_categories", sql, exc)
             raise
 
     # ------------------------------------------------------------------
@@ -196,7 +199,7 @@ class HomeRepository:
                 cursor.execute(sql, params)
                 return cursor.fetchall()
         except Exception as exc:
-            self._print_sql_error("get_featured_items", sql, exc, params)
+            self._log_sql_error("get_featured_items", sql, exc, params)
             raise
 
     # ------------------------------------------------------------------
@@ -230,7 +233,7 @@ class HomeRepository:
                 cursor.execute(sql)
                 return cursor.fetchall()
         except Exception as exc:
-            self._print_sql_error("get_content_types", sql, exc)
+            self._log_sql_error("get_content_types", sql, exc)
             raise
 
     # ------------------------------------------------------------------
@@ -264,6 +267,6 @@ class HomeRepository:
                 cursor.execute(sql)
                 return cursor.fetchall()
         except Exception as exc:
-            self._print_sql_error("get_regions", sql, exc)
+            self._log_sql_error("get_regions", sql, exc)
             raise
 
