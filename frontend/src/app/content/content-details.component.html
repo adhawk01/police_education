@@ -3,7 +3,6 @@
     eyebrow="פרטי תוכן"
     [title]="contentItem?.title || 'עמוד פרטים'"
     [summary]="contentItem?.short_description || ''"
-    subtitle="סקירה מלאה, מידע תפעולי, מיקום, נגישות והמלצות קשורות."
   >
     <div pageHeroActions class="content-details-page__hero-actions">
       <a class="content-details-page__hero-link" routerLink="/home">דף הבית</a>
@@ -133,27 +132,54 @@
 
     <div class="content-details-page__secondary-layout">
       <section class="content-panel">
-        <h3>מיקום על המפה</h3>
-        <p class="content-details-page__location-line">
-          {{ item.location.area || 'ללא אזור' }}
-          @if (item.location.city) {
-            · {{ item.location.city }}
+        <div class="content-details-page__location-header">
+          <h3>מיקום על המפה</h3>
+          @if (wazeLink; as waze) {
+            <a
+              class="content-details-page__waze-btn"
+              [href]="waze"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="נווט ב-Waze"
+            >
+              <img src="https://cdn.simpleicons.org/waze" alt="Waze" class="content-details-page__waze-logo" />
+              נווט ב-Waze
+            </a>
           }
-        </p>
-        @if (item.location.address) {
-          <p class="content-details-page__location-address">{{ item.location.address }}</p>
-        }
-
-        @if (mapLink; as locationMapLink) {
-          <a class="content-details-page__inline-link" [href]="locationMapLink" target="_blank" rel="noopener noreferrer">פתיחה במפה</a>
+        </div>
+        @if (mapLink) {
+          <div #locationMapContainer class="content-details-page__location-map"></div>
         } @else {
           <p class="content-details-page__muted">אין נתוני קואורדינטות להצגה במפה.</p>
         }
       </section>
 
       <section class="content-panel">
-        <h3>נגישות ומידע נוסף</h3>
-        @if (item.accessibility.has_accessibility_info) {
+        <div class="content-details-page__accessibility-header">
+          <h3>נגישות ומידע נוסף</h3>
+          <button
+            type="button"
+            class="content-details-page__ai-btn"
+            (click)="askAiForAccessibility()"
+            [disabled]="aiAccessibilityLoading"
+            aria-label="ניתוח נגישות בעזרת AI"
+          >
+            <span class="material-icons" aria-hidden="true">auto_awesome</span>
+            @if (aiAccessibilityLoading) {
+              מנתח...
+            } @else {
+              ניתוח AI
+            }
+          </button>
+        </div>
+
+        @if (aiAccessibilityLoading) {
+          <p class="content-details-page__muted">מכין עבורך סיכום נגישות מותאם...</p>
+        } @else if (aiAccessibilityError) {
+          <p class="content-details-page__error-text">{{ aiAccessibilityError }}</p>
+        } @else if (aiAccessibilityAnswerHtml) {
+          <div class="content-details-page__ai-answer" [innerHTML]="aiAccessibilityAnswerHtml"></div>
+        } @else if (item.accessibility.has_accessibility_info) {
           @if (item.accessibility.text) {
             <p>{{ item.accessibility.text }}</p>
           }
@@ -170,8 +196,33 @@
     </div>
 
     <section class="content-panel" *ngIf="item.full_description">
-      <h3>תיאור מלא</h3>
-      <p class="content-details-page__full-description">{{ item.full_description }}</p>
+      <div class="content-details-page__accessibility-header">
+        <h3>תיאור מלא</h3>
+        <button
+          type="button"
+          class="content-details-page__ai-btn"
+          (click)="askAiForDescription()"
+          [disabled]="aiDescriptionLoading"
+          aria-label="מידע כללי בעזרת AI"
+        >
+          <span class="material-icons" aria-hidden="true">auto_awesome</span>
+          @if (aiDescriptionLoading) {
+            מנתח...
+          } @else {
+            מידע AI
+          }
+        </button>
+      </div>
+
+      @if (aiDescriptionLoading) {
+        <p class="content-details-page__muted">מכין עבורך מידע כללי על המקום...</p>
+      } @else if (aiDescriptionError) {
+        <p class="content-details-page__error-text">{{ aiDescriptionError }}</p>
+      } @else if (aiDescriptionAnswerHtml) {
+        <div class="content-details-page__ai-answer" [innerHTML]="aiDescriptionAnswerHtml"></div>
+      } @else {
+        <p class="content-details-page__full-description">{{ item.full_description }}</p>
+      }
     </section>
 
     <section class="content-panel" *ngIf="item.recommended_items.length">

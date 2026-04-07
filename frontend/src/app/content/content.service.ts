@@ -10,8 +10,13 @@ import { ContentDetailsResponse } from './content-details.models';
 export class ContentService {
   private readonly http = inject(HttpClient);
   private readonly contentApiUrl = `${apiConfig.baseUrl}/api/content-items`;
+  private readonly aiAskUrl = `${apiConfig.baseUrl}/api/ai/ask`;
 
   getContentItemById(id: number | string): Observable<ContentDetailsResponse> {
     return this.http.get<ContentDetailsResponse>(`${this.contentApiUrl}/${encodeURIComponent(String(id))}`);
+  }
+
+  askAi(prompt: string): Observable<unknown> {
+    return this.http.post<unknown>(this.aiAskUrl, { prompt }, { withCredentials: true });
   }
 }

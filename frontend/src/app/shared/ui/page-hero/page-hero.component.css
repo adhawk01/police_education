@@ -11,7 +11,7 @@
   border-radius: 24px;
   background: linear-gradient(135deg, #0f172a, #1d4ed8);
   color: #ffffff;
-  padding: 32px 24px;
+  padding: 22px;
 }
 
 .page-hero__content {
@@ -56,7 +56,7 @@
 @media (max-width: 768px) {
   .page-hero {
     flex-direction: column;
-    padding: 24px 18px;
+    padding: 22px;
   }
 
   .page-hero__title {
