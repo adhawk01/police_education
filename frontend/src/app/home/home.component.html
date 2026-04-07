@@ -173,7 +173,7 @@
                 [active]="activeMapItemId === item.id"
                 (hovered)="hoverMapItem(item.id)"
                 (unhovered)="clearHoveredMapItem(item.id)"
-                (selected)="focusMapItem(item.id)"
+                (selected)="openContentDetails(item.id)"
               ></app-map-item-card>
             </div>
           </div>
@@ -203,7 +203,7 @@
           [hoveredState]="isHoveredMapItem(item.id)"
           (hovered)="hoverMapItem(item.id)"
           (unhovered)="clearHoveredMapItem(item.id)"
-          (selected)="focusMapItem(item.id)"
+          (selected)="openContentDetails(item.id)"
         ></app-featured-card>
       </div>
     </div>
