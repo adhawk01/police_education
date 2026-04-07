@@ -2,7 +2,7 @@ import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, DestroyRef, ElementRef, NgZone, OnDestroy, QueryList, ViewChild, ViewChildren, inject, OnInit } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, FormsModule, ReactiveFormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import * as L from 'leaflet';
 import { finalize } from 'rxjs';
 import { MapItemCardComponent } from '../home/components/map-item-card/map-item-card.component';
@@ -28,6 +28,7 @@ export class SearchComponent implements OnInit, OnDestroy {
   private readonly changeDetectorRef = inject(ChangeDetectorRef);
   private readonly destroyRef = inject(DestroyRef);
   private readonly ngZone = inject(NgZone);
+  private readonly router = inject(Router);
 
   @ViewChild('mapContainer')
   private set mapContainerRef(value: ElementRef<HTMLDivElement> | undefined) {
@@ -294,6 +295,10 @@ export class SearchComponent implements OnInit, OnDestroy {
 
   isSelectedMapItem(itemId: number): boolean {
     return this.selectedMapItemId === itemId;
+  }
+
+  openContentDetails(contentItemId: number): void {
+    void this.router.navigate(['/content', contentItemId]);
   }
 
   toMapPanelCard(item: SearchResultItem): HomeApiFeaturedItem {
@@ -659,7 +664,7 @@ export class SearchComponent implements OnInit, OnDestroy {
 
     marker.on('click', () => {
       this.ngZone.run(() => {
-        this.focusMapItem(item.id);
+        this.openContentDetails(item.id);
       });
     });
 

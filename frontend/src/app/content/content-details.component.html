@@ -1,0 +1,252 @@
+<section class="content-details-page" dir="rtl">
+  <app-page-hero
+    eyebrow="פרטי תוכן"
+    [title]="contentItem?.title || 'עמוד פרטים'"
+    [summary]="contentItem?.short_description || ''"
+  >
+    <div pageHeroActions class="content-details-page__hero-actions">
+      <a class="content-details-page__hero-link" routerLink="/home">דף הבית</a>
+      <a class="content-details-page__hero-link" routerLink="/search">חיפוש</a>
+    </div>
+  </app-page-hero>
+
+  @if (loading) {
+    <article class="content-panel content-panel--feedback">טוען פרטי תוכן...</article>
+  } @else if (notFound) {
+    <article class="content-panel content-panel--feedback">
+      <h2>התוכן לא נמצא</h2>
+      <p>ייתכן שהפריט אינו זמין לצפייה או שהוסר מהמערכת.</p>
+      <a class="content-details-page__inline-link" routerLink="/search">חזרה לתוצאות החיפוש</a>
+    </article>
+  } @else if (errorMessage) {
+    <article class="content-panel content-panel--feedback content-panel--error">
+      <h2>שגיאה בטעינת הפרטים</h2>
+      <p>{{ errorMessage }}</p>
+      <a class="content-details-page__inline-link" routerLink="/search">חזרה לתוצאות החיפוש</a>
+    </article>
+  } @else if (contentItem; as item) {
+    <div class="content-details-page__layout">
+      <section class="content-panel content-details-page__main">
+        @if (activeImage(); as activeImage) {
+          <figure class="content-details-page__main-image-wrap">
+            <img class="content-details-page__main-image" [src]="activeImage.url" [alt]="activeImage.alt" loading="lazy" />
+            @if (activeImage.isPrimary) {
+              <figcaption class="content-details-page__primary-chip">תמונה ראשית</figcaption>
+            }
+            @if (galleryImages().length > 1) {
+              <button
+                type="button"
+                class="content-details-page__nav-btn content-details-page__nav-btn--prev"
+                (click)="prevImage()"
+                aria-label="תמונה קודמת"
+              ><span class="material-icons">chevron_right</span></button>
+              <button
+                type="button"
+                class="content-details-page__nav-btn content-details-page__nav-btn--next"
+                (click)="nextImage()"
+                aria-label="תמונה הבאה"
+              ><span class="material-icons">chevron_left</span></button>
+            }
+          </figure>
+        } @else {
+          <div class="content-details-page__main-image-placeholder">אין תמונה להצגה</div>
+        }
+
+        @if (galleryImages().length > 1) {
+          <div class="content-details-page__thumb-strip" aria-label="גלריית תמונות">
+            <button
+              *ngFor="let image of galleryImages(); let imageIndex = index"
+              type="button"
+              class="content-details-page__thumb"
+              [class.content-details-page__thumb--active]="activeImage()?.id === image.id"
+              (click)="selectImage(imageIndex)"
+            >
+              <img [src]="image.url" [alt]="image.alt" loading="lazy" />
+            </button>
+          </div>
+        }
+
+        <div class="content-details-page__summary">
+          <h2 class="content-details-page__title">{{ item.title }}</h2>
+
+          @if (item.short_description) {
+            <p class="content-details-page__short-description">{{ item.short_description }}</p>
+          }
+
+          <div class="content-details-page__chips" *ngIf="item.categories.length || item.badges.length">
+            <span
+              class="content-details-page__chip content-details-page__chip--category"
+              *ngFor="let category of item.categories"
+              [style.--chip-color]="category.color || '#2563eb'"
+            >
+              {{ category.name }}
+            </span>
+
+            <span class="content-details-page__chip content-details-page__chip--badge" *ngFor="let badge of item.badges">
+              {{ badge }}
+            </span>
+          </div>
+        </div>
+      </section>
+
+      <aside class="content-panel content-details-page__meta">
+        <h3>מרכז מידע</h3>
+
+        <dl class="content-details-page__meta-list">
+          @if (item.details.activity_type) {
+            <div><dt>סוג פעילות</dt><dd>{{ item.details.activity_type }}</dd></div>
+          }
+          @if (item.details.status_text) {
+            <div><dt>סטטוס</dt><dd>{{ item.details.status_text }}</dd></div>
+          }
+          @if (item.details.price_text) {
+            <div><dt>מחיר</dt><dd>{{ item.details.price_text }}</dd></div>
+          }
+          @if (item.details.participants_text) {
+            <div><dt>משתתפים</dt><dd>{{ item.details.participants_text }}</dd></div>
+          }
+          @if (item.details.age_text) {
+            <div><dt>קהל יעד</dt><dd>{{ item.details.age_text }}</dd></div>
+          }
+          @if (item.details.schedule_text) {
+            <div><dt>זמינות</dt><dd>{{ item.details.schedule_text }}</dd></div>
+          }
+        </dl>
+
+        <div class="content-details-page__action-list">
+          @if (item.contact.booking_url; as bookingUrl) {
+            <a class="content-details-page__action-btn content-details-page__action-btn--primary" [href]="bookingUrl" target="_blank" rel="noopener noreferrer">מעבר לרישום</a>
+          }
+          @if (item.contact.website; as websiteUrl) {
+            <a class="content-details-page__action-btn" [href]="websiteUrl" target="_blank" rel="noopener noreferrer">אתר הפעילות</a>
+          }
+          @if (item.contact.email; as emailAddress) {
+            <a class="content-details-page__action-btn" [href]="'mailto:' + emailAddress">שליחת דוא״ל</a>
+          }
+          @if (item.contact.phone; as phoneNumber) {
+            <a class="content-details-page__action-btn" [href]="'tel:' + phoneNumber">חיוג: {{ phoneNumber }}</a>
+          }
+        </div>
+      </aside>
+    </div>
+
+    <div class="content-details-page__secondary-layout">
+      <section class="content-panel">
+        <div class="content-details-page__location-header">
+          <h3>מיקום על המפה</h3>
+          @if (wazeLink; as waze) {
+            <a
+              class="content-details-page__waze-btn"
+              [href]="waze"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="נווט ב-Waze"
+            >
+              <img src="https://cdn.simpleicons.org/waze" alt="Waze" class="content-details-page__waze-logo" />
+              נווט ב-Waze
+            </a>
+          }
+        </div>
+        @if (mapLink) {
+          <div #locationMapContainer class="content-details-page__location-map"></div>
+        } @else {
+          <p class="content-details-page__muted">אין נתוני קואורדינטות להצגה במפה.</p>
+        }
+      </section>
+
+      <section class="content-panel">
+        <div class="content-details-page__accessibility-header">
+          <h3>נגישות ומידע נוסף</h3>
+          <button
+            type="button"
+            class="content-details-page__ai-btn"
+            (click)="askAiForAccessibility()"
+            [disabled]="aiAccessibilityLoading"
+            aria-label="ניתוח נגישות בעזרת AI"
+          >
+            <span class="material-icons" aria-hidden="true">auto_awesome</span>
+            @if (aiAccessibilityLoading) {
+              מנתח...
+            } @else {
+              ניתוח AI
+            }
+          </button>
+        </div>
+
+        @if (aiAccessibilityLoading) {
+          <p class="content-details-page__muted">מכין עבורך סיכום נגישות מותאם...</p>
+        } @else if (aiAccessibilityError) {
+          <p class="content-details-page__error-text">{{ aiAccessibilityError }}</p>
+        } @else if (aiAccessibilityAnswerHtml) {
+          <div class="content-details-page__ai-answer" [innerHTML]="aiAccessibilityAnswerHtml"></div>
+        } @else if (item.accessibility.has_accessibility_info) {
+          @if (item.accessibility.text) {
+            <p>{{ item.accessibility.text }}</p>
+          }
+
+          @if (item.accessibility.features.length) {
+            <ul class="content-details-page__bullet-list">
+              <li *ngFor="let feature of item.accessibility.features">{{ feature }}</li>
+            </ul>
+          }
+        } @else {
+          <p class="content-details-page__muted">לא נמסר מידע נגישות עבור פעילות זו.</p>
+        }
+      </section>
+    </div>
+
+    <section class="content-panel" *ngIf="item.full_description">
+      <div class="content-details-page__accessibility-header">
+        <h3>תיאור מלא</h3>
+        <button
+          type="button"
+          class="content-details-page__ai-btn"
+          (click)="askAiForDescription()"
+          [disabled]="aiDescriptionLoading"
+          aria-label="מידע כללי בעזרת AI"
+        >
+          <span class="material-icons" aria-hidden="true">auto_awesome</span>
+          @if (aiDescriptionLoading) {
+            מנתח...
+          } @else {
+            מידע AI
+          }
+        </button>
+      </div>
+
+      @if (aiDescriptionLoading) {
+        <p class="content-details-page__muted">מכין עבורך מידע כללי על המקום...</p>
+      } @else if (aiDescriptionError) {
+        <p class="content-details-page__error-text">{{ aiDescriptionError }}</p>
+      } @else if (aiDescriptionAnswerHtml) {
+        <div class="content-details-page__ai-answer" [innerHTML]="aiDescriptionAnswerHtml"></div>
+      } @else {
+        <p class="content-details-page__full-description">{{ item.full_description }}</p>
+      }
+    </section>
+
+    <section class="content-panel" *ngIf="item.recommended_items.length">
+      <h3>המלצות דומות</h3>
+
+      <div class="content-details-page__recommendations-grid">
+        <button
+          type="button"
+          class="content-details-page__recommendation-card"
+          *ngFor="let recommendation of item.recommended_items"
+          (click)="openContent(recommendation.id)"
+        >
+          @if (recommendation.image_url; as recommendationImageUrl) {
+            <img [src]="recommendationImageUrl" [alt]="recommendation.title" loading="lazy" />
+          } @else {
+            <div class="content-details-page__recommendation-placeholder" aria-hidden="true"></div>
+          }
+
+          <h4>{{ recommendation.title }}</h4>
+          @if (recommendation.short_description) {
+            <p>{{ recommendation.short_description }}</p>
+          }
+        </button>
+      </div>
+    </section>
+  }
+</section>

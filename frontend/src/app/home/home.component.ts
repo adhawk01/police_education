@@ -1,7 +1,7 @@
 import { CommonModule } from '@angular/common';
 import { AfterViewInit, ChangeDetectionStrategy, ChangeDetectorRef, Component, ElementRef, NgZone, OnDestroy, QueryList, ViewChild, ViewChildren, inject, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import * as L from 'leaflet';
 import { MapItemCardComponent } from './components/map-item-card/map-item-card.component';
 import { CategoryCardComponent } from '../shared/ui/category-card/category-card.component';
@@ -38,6 +38,7 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
   private readonly homeApiService = inject(HomeApiService);
   private readonly changeDetectorRef = inject(ChangeDetectorRef);
   private readonly ngZone = inject(NgZone);
+  private readonly router = inject(Router);
 
   @ViewChild('mapContainer') private mapContainer?: ElementRef<HTMLDivElement>;
   @ViewChild('mapBoard') private mapBoard?: ElementRef<HTMLElement>;
@@ -463,6 +464,10 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
     this.changeDetectorRef.markForCheck();
   }
 
+  openContentDetails(contentItemId: number): void {
+    void this.router.navigate(['/content', contentItemId]);
+  }
+
   private createMarker(item: HomeApiFeaturedItem): L.CircleMarker | null {
     const latitude = this.parseCoordinate(item.latitude);
     const longitude = this.parseCoordinate(item.longitude);
@@ -503,7 +508,7 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
 
     marker.on('click', () => {
       this.ngZone.run(() => {
-        this.focusMapItem(item.id);
+        this.openContentDetails(item.id);
       });
     });
 
