@@ -22,6 +22,15 @@
         >
           חיפוש מתקדם
         </a>
+        @if (canAccessAdmin()) {
+          <a
+            class="authenticated-shell__nav-link authenticated-shell__nav-link--admin"
+            routerLink="/admin"
+            routerLinkActive="authenticated-shell__nav-link--active"
+          >
+            ניהול אתר
+          </a>
+        }
       </nav>
 
       <div class="authenticated-shell__actions">

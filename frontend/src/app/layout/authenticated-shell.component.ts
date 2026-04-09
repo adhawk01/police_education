@@ -19,6 +19,7 @@ export class AuthenticatedShellComponent {
   readonly isLoggingOut = signal(false);
   readonly errorMessage = signal('');
   readonly currentUser = this.authService.currentUser;
+  readonly canAccessAdmin = computed(() => this.authService.canAccessAdmin());
   readonly displayName = computed(() => {
     const user = this.currentUser();
 

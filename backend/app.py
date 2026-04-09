@@ -1,10 +1,10 @@
 import os
 
-from flask import Flask
+from flask import Flask, send_from_directory
 from flask_cors import CORS
 from dotenv import load_dotenv
 
-from routes import ai_bp, auth_bp, content_bp, home_bp, search_bp
+from routes import admin_bp, ai_bp, auth_bp, content_bp, home_bp, search_bp
 
 load_dotenv()
 
@@ -17,6 +17,7 @@ app.register_blueprint(search_bp)
 app.register_blueprint(auth_bp)
 app.register_blueprint(content_bp)
 app.register_blueprint(ai_bp)
+app.register_blueprint(admin_bp)
 
 CORS(
     app,
@@ -32,6 +33,13 @@ CORS(
     },
     supports_credentials=True,
 )
+
+@app.route("/uploads/contentImages/<path:filename>")
+def serve_content_image(filename):
+    """Serve uploaded content images."""
+    upload_folder = os.path.join(os.path.dirname(__file__), "uploads", "contentImages")
+    return send_from_directory(upload_folder, filename)
+
 
 @app.route("/")
 def home():
