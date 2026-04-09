@@ -1,0 +1,461 @@
+<section class="admin-page" dir="rtl">
+  <header class="admin-page__header">
+    <div>
+      <p class="admin-page__kicker">ניהול אתר</p>
+      <h1>אזור מנהל תוכן</h1>
+      <p>ניהול תכנים, סינון ועדכון סטטוסים דרך ממשק ניהולי מאובטח.</p>
+    </div>
+
+    <button type="button" class="admin-page__primary-btn" (click)="openCreate()">יצירת תוכן חדש</button>
+  </header>
+
+  @if (metadataError) {
+    <div class="admin-page__notice admin-page__notice--error" role="alert">{{ metadataError }}</div>
+  }
+
+  @if (saveError) {
+    <div class="admin-page__notice admin-page__notice--error" role="alert">{{ saveError }}</div>
+  }
+
+  <section class="admin-panel">
+    <div class="admin-panel__head">
+      <h2>חיפוש וסינון</h2>
+      <button
+        type="button"
+        class="admin-panel__toggle"
+        [class.admin-panel__toggle--closed]="!showFilters"
+        [attr.aria-expanded]="showFilters"
+        [attr.aria-label]="showFilters ? 'הסתר פילטרים' : 'הצג פילטרים'"
+        [title]="showFilters ? 'הסתר פילטרים' : 'הצג פילטרים'"
+        (click)="showFilters = !showFilters"
+      >
+        <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true" width="20" height="20">
+          <path d="M7 10l5 5 5-5z"/>
+        </svg>
+      </button>
+    </div>
+
+    @if (showFilters) {
+    <form class="admin-filters" [formGroup]="filtersForm" (ngSubmit)="applyFilters()">
+      <label>
+        <span>חיפוש</span>
+        <input type="text" formControlName="q" placeholder="כותרת או תיאור" />
+      </label>
+
+      <label>
+        <span>סטטוס (בחירה מרובה)</span>
+        <select formControlName="status_ids" multiple size="4">
+          @for (status of metadata?.statuses ?? []; track status.id) {
+            <option [value]="'' + status.id">{{ status.name }}</option>
+          }
+        </select>
+      </label>
+
+      <label>
+        <span>קטגוריה (בחירה מרובה)</span>
+        <select formControlName="category_ids" multiple size="4">
+          @for (category of metadata?.categories ?? []; track category.id) {
+            <option [value]="'' + category.id">{{ category.name }}</option>
+          }
+        </select>
+      </label>
+
+      <label>
+        <span>אזור (בחירה מרובה)</span>
+        <select formControlName="area_ids" multiple size="4">
+          @for (area of metadata?.areas ?? []; track area.id) {
+            <option [value]="'' + area.id">{{ area.name }}</option>
+          }
+        </select>
+      </label>
+
+      <label>
+        <span>עיר (בחירה מרובה)</span>
+        <select formControlName="city_ids" multiple size="4">
+          @for (city of availableCities; track city.id) {
+            <option [value]="'' + city.id">{{ city.name }}</option>
+          }
+        </select>
+      </label>
+
+      <label>
+        <span>פעיל (בחירה מרובה)</span>
+        <select formControlName="is_active_values" multiple size="2">
+          <option value="true">פעיל</option>
+          <option value="false">לא פעיל</option>
+        </select>
+      </label>
+
+      <div class="admin-filters__actions">
+        <button type="submit" class="admin-page__primary-btn">סינון</button>
+        <button type="button" class="admin-page__secondary-btn" (click)="clearFilters()">ניקוי</button>
+      </div>
+    </form>
+    }
+  </section>
+
+  <section class="admin-panel">
+    <div class="admin-list__head">
+      <h2>תכנים לניהול</h2>
+      <p>{{ totalCount }} פריטים</p>
+    </div>
+
+    @if (loadingItems || loadingMetadata) {
+      <div class="admin-page__loading">טוען נתוני ניהול...</div>
+    } @else if (listError) {
+      <div class="admin-page__notice admin-page__notice--error" role="alert">{{ listError }}</div>
+    } @else if (!items.length) {
+      <div class="admin-page__empty">אין תכנים להצגה לפי הסינון הנוכחי.</div>
+    } @else {
+      <div class="admin-table-wrap">
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th>
+                <button type="button" class="admin-sort-btn" (click)="sortByTitle()">
+                  כותרת <span class="admin-sort-btn__icon">{{ titleSortIcon }}</span>
+                </button>
+              </th>
+              <th>קטגוריות</th>
+              <th>מיקום</th>
+              <th>סטטוס</th>
+              <th>פעיל</th>
+              <th>פעולות</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (item of items; track item.id) {
+              <tr>
+                <td>
+                  <strong>{{ item.title }}</strong>
+                  <p>{{ item.short_description || 'ללא תיאור קצר' }}</p>
+                </td>
+                <td>
+                  @if (item.categories.length) {
+                    @for (category of item.categories; track category.id) {
+                      <span
+                        class="admin-chip"
+                        [style.--category-color]="category.color || '#2563eb'"
+                      >
+                        {{ category.name }}
+                      </span>
+                    }
+                  } @else {
+                    <span class="admin-muted">ללא קטגוריות</span>
+                  }
+                </td>
+                <td>{{ item.location?.area || '-' }} / {{ item.location?.city || '-' }}</td>
+                <td>
+                  <select (change)="applyStatus(item, $any($event.target).value)">
+                    @for (status of statusChoices; track status.id) {
+                      <option [value]="status.id" [selected]="status.id === item.status.id">{{ status.name }}</option>
+                    }
+                  </select>
+                </td>
+                <td>
+                  <div class="admin-status-toggle" role="group" aria-label="מצב פעילות">
+                    <button
+                      type="button"
+                      class="admin-status-toggle__opt"
+                      [class.admin-status-toggle__opt--active]="item.is_active"
+                      [disabled]="item.is_active"
+                      (click)="toggleActive(item)"
+                    >פעיל</button>
+                    <button
+                      type="button"
+                      class="admin-status-toggle__opt"
+                      [class.admin-status-toggle__opt--inactive]="!item.is_active"
+                      [disabled]="!item.is_active"
+                      (click)="toggleActive(item)"
+                    >לא פעיל</button>
+                  </div>
+                </td>
+                <td>
+                  <div class="admin-actions">
+                    <button
+                      type="button"
+                      class="admin-edit-btn admin-edit-btn--archive"
+                      title="העבר לארכיון"
+                      aria-label="העבר לארכיון"
+                      [disabled]="isArchivedStatus(item)"
+                      (click)="archiveItem(item)"
+                    >
+                      <svg class="admin-edit-btn__icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                        <path d="M3 7a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v2a2 2 0 0 1-2 2v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7a2 2 0 0 1-2-2V7zm2 0v2h14V7H5zm2 4v7h10v-7H7zm3 2h4a1 1 0 1 1 0 2h-4a1 1 0 1 1 0-2z"/>
+                      </svg>
+                    </button>
+
+                    <button
+                      type="button"
+                      class="admin-edit-btn"
+                      title="עריכה"
+                      aria-label="עריכה"
+                      (click)="openEdit(item)"
+                    >
+                      <svg class="admin-edit-btn__icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                        <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
+                      </svg>
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      @if (totalPages > 1) {
+        <nav class="admin-pagination" aria-label="דפדוף">
+          <button type="button" (click)="goToPage(page - 1)" [disabled]="page === 1">הקודם</button>
+
+          @for (pageItem of visiblePages; track pageItem) {
+            <button type="button" [class.admin-pagination__active]="pageItem === page" (click)="goToPage(pageItem)">
+              {{ pageItem }}
+            </button>
+          }
+
+          <button type="button" (click)="goToPage(page + 1)" [disabled]="page === totalPages">הבא</button>
+        </nav>
+      }
+    }
+  </section>
+
+  @if (editorVisible) {
+    <section class="admin-editor-backdrop" (click)="closeEditor()">
+      <section
+        class="admin-editor"
+        role="dialog"
+        aria-modal="true"
+        aria-label="טופס ניהול תוכן"
+        (click)="$event.stopPropagation()"
+      >
+        <div class="admin-editor__head">
+          <h2>{{ editorMode === 'create' ? 'יצירת תוכן חדש' : 'עריכת תוכן' }}</h2>
+          <button type="button" class="admin-page__secondary-btn" (click)="closeEditor()">סגירה</button>
+        </div>
+
+        <form class="admin-editor__form" [formGroup]="editorForm" (ngSubmit)="saveItem()">
+        <label>
+          <span>סוג תוכן</span>
+          <select formControlName="content_type_id" required>
+            <option value="">בחר</option>
+            @for (type of metadata?.content_types ?? []; track type.id) {
+              <option [value]="type.id">{{ type.name }}</option>
+            }
+          </select>
+        </label>
+
+        <label>
+          <span>כותרת</span>
+          <input type="text" formControlName="title" required />
+        </label>
+
+        <!-- ===== Media manager ===== -->
+        <fieldset class="admin-editor__full-width admin-editor__fieldset admin-media">
+          <legend>תמונות</legend>
+
+          <!-- Add via URL -->
+          <div class="admin-media__url-row">
+            <input
+              #urlInput
+              type="url"
+              class="admin-media__url-input"
+              dir="ltr"
+              placeholder="https://example.com/image.jpg"
+            />
+            <button
+              type="button"
+              class="admin-page__secondary-btn"
+              (click)="addMediaUrl(urlInput.value); urlInput.value = ''"
+            >הוסף URL</button>
+          </div>
+
+          <!-- Drag & drop / click to upload -->
+          <div
+            class="admin-media__dropzone"
+            [class.admin-media__dropzone--drag-over]="isDraggingOver"
+            (dragover)="$event.preventDefault(); isDraggingOver = true"
+            (dragleave)="isDraggingOver = false"
+            (drop)="onMediaDrop($event)"
+            (click)="mediaFileInput.click()"
+          >
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586A2 2 0 0112 11a2 2 0 011.414.586L18 16M14 12l1.586-1.586A2 2 0 0117 10a2 2 0 011.414.586L21 14M8 8h.01M3 20h18a1 1 0 001-1V5a1 1 0 00-1-1H3a1 1 0 00-1 1v14a1 1 0 001 1z"/>
+            </svg>
+            <span>גרור תמונות לכאן או <u>לחץ לבחירה</u></span>
+            <span class="admin-media__dropzone-hint">PNG, JPG, GIF, WEBP</span>
+            <input
+              #mediaFileInput
+              type="file"
+              accept="image/png,image/jpeg,image/gif,image/webp"
+              multiple
+              style="display:none"
+              (change)="onMediaFileChange($event)"
+            />
+          </div>
+
+          <!-- Existing & newly-added thumbnails -->
+          @if (mediaItems.length > 0) {
+            <div class="admin-media__grid">
+              @for (item of mediaItems; track $index) {
+                @if (!item.to_delete) {
+                  <div class="admin-media__thumb-card" [class.admin-media__thumb-card--new]="item.is_new">
+                    <img
+                      class="admin-media__thumb-img"
+                      [src]="item.local_preview || item.file_url"
+                      [alt]="item.alt_text || 'תמונה'"
+                    />
+                    @if (item.is_primary) {
+                      <span class="admin-media__badge">ראשי</span>
+                    }
+                    <div class="admin-media__thumb-actions">
+                      @if (!item.is_primary) {
+                        <button type="button" class="admin-media__action-btn" (click)="setMediaPrimary($index)">ראשי</button>
+                      }
+                      <button type="button" class="admin-media__remove-btn" (click)="removeMedia($index)" title="הסר">✕</button>
+                    </div>
+                  </div>
+                }
+              }
+            </div>
+          }
+        </fieldset>
+        <!-- ===== End media manager ===== -->
+
+        <label class="admin-editor__full-width">
+          <span>תיאור קצר</span>
+          <textarea rows="2" formControlName="short_description"></textarea>
+        </label>
+
+        <label class="admin-editor__full-width">
+          <span>תיאור מלא</span>
+          <textarea rows="4" formControlName="full_description"></textarea>
+        </label>
+
+        <label>
+          <span>סטטוס</span>
+          <select formControlName="status_id" required>
+            <option value="">בחר</option>
+            @for (status of metadata?.statuses ?? []; track status.id) {
+              <option [value]="status.id">{{ status.name }}</option>
+            }
+          </select>
+        </label>
+
+        <label>
+          <span>תאריך פרסום</span>
+          <input type="datetime-local" formControlName="published_at" />
+        </label>
+
+        <fieldset class="admin-editor__full-width admin-editor__fieldset">
+          <legend>מיקום</legend>
+          <div class="admin-editor__grid">
+            <label>
+              <span>אזור</span>
+              <select [value]="editorAreaId" (change)="onEditorAreaChange($any($event.target).value)">
+                <option value="">בחר אזור</option>
+                @for (area of metadata?.areas ?? []; track area.id) {
+                  <option [value]="area.id">{{ area.name }}</option>
+                }
+              </select>
+            </label>
+
+            <label>
+              <span>עיר</span>
+              <select [value]="editorCityId" (change)="onEditorCityChange($any($event.target).value)">
+                <option value="">בחר עיר</option>
+                @for (city of editorAvailableCities; track city.id) {
+                  <option [value]="city.id">{{ city.name }}</option>
+                }
+              </select>
+            </label>
+
+            <label class="admin-editor__full-width">
+              <span>מיקום</span>
+              <select formControlName="location_id" (change)="onEditorLocationChange($any($event.target).value)">
+                <option value="">בחר מיקום</option>
+                @for (location of editorAvailableLocations; track location.id) {
+                  <option [value]="location.id">
+                    {{ location.place_name }}
+                  </option>
+                }
+              </select>
+            </label>
+
+            <label>
+              <span>שם מקום</span>
+              <input type="text" formControlName="location_place_name" placeholder="לדוגמה: תחנת קהילה צפת" />
+            </label>
+
+            <label>
+              <span>כתובת</span>
+              <input type="text" formControlName="location_address_line" placeholder="רחוב, עיר" />
+            </label>
+          </div>
+        </fieldset>
+
+        <fieldset class="admin-editor__full-width admin-editor__fieldset">
+          <legend>קטגוריות</legend>
+          <div class="admin-editor__chips">
+            @for (category of metadata?.categories ?? []; track category.id) {
+              <button
+                type="button"
+                class="admin-editor__category-chip"
+                [class.admin-editor__category-chip--active]="isCategoryChecked(category.id)"
+                [attr.aria-pressed]="isCategoryChecked(category.id)"
+                (click)="toggleCategory(category.id, !isCategoryChecked(category.id))"
+              >
+                <span
+                  class="admin-editor__category-chip-dot"
+                  [style.background]="category.color_code || '#2563eb'"
+                  aria-hidden="true"
+                ></span>
+                {{ category.name }}
+              </button>
+            }
+          </div>
+        </fieldset>
+
+        <fieldset class="admin-editor__full-width admin-editor__fieldset">
+          <legend>פרטים תפעוליים</legend>
+          <div class="admin-editor__grid">
+            <label><span>משך בדקות</span><input type="number" formControlName="duration_minutes" /></label>
+            <label><span>מינימום משתתפים</span><input type="number" formControlName="min_participants" /></label>
+            <label><span>מקסימום משתתפים</span><input type="number" formControlName="max_participants" /></label>
+            <label><span>סוג מחיר</span><input type="text" formControlName="price_type" /></label>
+            <label><span>מחיר מינימום</span><input type="number" formControlName="price_min" /></label>
+            <label><span>מחיר מקסימום</span><input type="number" formControlName="price_max" /></label>
+            <label><span>מטבע</span><input type="text" formControlName="currency" /></label>
+            <label><span>טלפון</span><input type="text" formControlName="phone" /></label>
+            <label><span>אימייל</span><input type="email" formControlName="email" /></label>
+            <label><span>אתר</span><input type="url" formControlName="website_url" /></label>
+            <label><span>קישור הזמנה</span><input type="url" formControlName="booking_url" /></label>
+          </div>
+        </fieldset>
+
+        <label>
+          <span>הערות קהל יעד</span>
+          <textarea rows="2" formControlName="audience_notes"></textarea>
+        </label>
+
+        <label class="admin-editor__full-width">
+          <span>הערות הטבת ביטחון</span>
+          <textarea rows="2" formControlName="security_benefit_notes"></textarea>
+        </label>
+
+        <label class="admin-editor__checkbox"><input type="checkbox" formControlName="is_featured" /> <span>מומלץ/מוצג</span></label>
+        <label class="admin-editor__checkbox"><input type="checkbox" formControlName="is_active" /> <span>פעיל</span></label>
+        <label class="admin-editor__checkbox"><input type="checkbox" formControlName="booking_required" /> <span>דורש הרשמה</span></label>
+        <label class="admin-editor__checkbox"><input type="checkbox" formControlName="security_benefit_available" /> <span>זכאות להטבת ביטחון</span></label>
+
+          <div class="admin-editor__actions admin-editor__full-width">
+            <button type="submit" class="admin-page__primary-btn" [disabled]="savingItem">
+              {{ savingItem ? 'שומר...' : editorMode === 'create' ? 'יצירה' : 'שמירה' }}
+            </button>
+            <button type="button" class="admin-page__secondary-btn" (click)="closeEditor()">ביטול</button>
+          </div>
+        </form>
+      </section>
+    </section>
+  }
+</section>

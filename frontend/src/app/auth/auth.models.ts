@@ -4,6 +4,14 @@ export interface AuthUser {
   full_name?: string | null;
   fullName?: string | null;
   name?: string | null;
+  roles?: string[];
+  permissions?: string[];
+  status?: {
+    id?: number;
+    code?: string;
+    name?: string;
+    is_active?: boolean;
+  };
 }
 
 export interface LoginPayload {

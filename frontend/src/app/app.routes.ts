@@ -1,5 +1,6 @@
 import { Routes } from '@angular/router';
-import { guestOnlyGuard, authGuard } from './auth/auth.guards';
+import { guestOnlyGuard, authGuard, adminRoleGuard } from './auth/auth.guards';
+import { AdminPageComponent } from './admin/admin-page.component';
 import { LoginComponent } from './auth/login/login.component';
 import { RegisterComponent } from './auth/register/register.component';
 import { ContentDetailsComponent } from './content/content-details.component';
@@ -18,6 +19,7 @@ export const routes: Routes = [
 		children: [
 			{ path: 'home', component: HomeComponent },
 			{ path: 'search', component: SearchComponent },
+			{ path: 'admin', component: AdminPageComponent, canActivate: [adminRoleGuard] },
 			{ path: 'content/:id', component: ContentDetailsComponent }
 		]
 	},
