@@ -77,6 +77,30 @@ export class AuthService {
     return this.authenticated();
   }
 
+  hasAnyRole(...allowedRoles: string[]): boolean {
+    const user = this.userState();
+    if (!user || !user.roles?.length || !allowedRoles.length) {
+      return false;
+    }
+
+    const userRoles = new Set(user.roles.map((role) => role.toLowerCase()));
+    return allowedRoles.some((role) => userRoles.has(role.toLowerCase()));
+  }
+
+  hasPermission(permissionCode: string): boolean {
+    const user = this.userState();
+    if (!user || !permissionCode || !user.permissions?.length) {
+      return false;
+    }
+
+    const normalizedPermission = permissionCode.toLowerCase();
+    return user.permissions.some((permission) => permission.toLowerCase() === normalizedPermission);
+  }
+
+  canAccessAdmin(): boolean {
+    return this.hasAnyRole('admin', 'site_manager') || this.hasPermission('site_admin');
+  }
+
   private fetchCurrentUser(): Observable<AuthUser | null> {
     return this.http.get<AuthApiResponse | AuthUser | null>(this.meUrl, { withCredentials: true }).pipe(
       map((response) => this.extractUser(response)),
@@ -141,7 +165,63 @@ export class AuthService {
       email,
       full_name: typeof candidate['full_name'] === 'string' ? candidate['full_name'] : null,
       fullName: typeof candidate['fullName'] === 'string' ? candidate['fullName'] : null,
-      name: typeof candidate['name'] === 'string' ? candidate['name'] : null
+      name: typeof candidate['name'] === 'string' ? candidate['name'] : null,
+      roles: this.normalizeStringList(candidate['roles']),
+      permissions: this.normalizeStringList(candidate['permissions']),
+      status: this.normalizeStatus(candidate['status'])
+    };
+  }
+
+  private normalizeStringList(value: unknown): string[] {
+    if (typeof value === 'string') {
+      return value
+        .split(',')
+        .map((entry) => entry.trim())
+        .filter((entry) => entry.length > 0);
+    }
+
+    if (!Array.isArray(value)) {
+      return [];
+    }
+
+    const entries: string[] = [];
+
+    value.forEach((entry) => {
+      if (typeof entry === 'string') {
+        const normalized = entry.trim();
+        if (normalized) {
+          entries.push(normalized);
+        }
+        return;
+      }
+
+      if (entry && typeof entry === 'object') {
+        const candidate = entry as Record<string, unknown>;
+        const code = typeof candidate['code'] === 'string' ? candidate['code'].trim() : '';
+        const name = typeof candidate['name'] === 'string' ? candidate['name'].trim() : '';
+
+        if (code) {
+          entries.push(code);
+        } else if (name) {
+          entries.push(name);
+        }
+      }
+    });
+
+    return entries;
+  }
+
+  private normalizeStatus(value: unknown): AuthUser['status'] {
+    if (!value || typeof value !== 'object') {
+      return undefined;
+    }
+
+    const candidate = value as Record<string, unknown>;
+    return {
+      id: typeof candidate['id'] === 'number' ? candidate['id'] : undefined,
+      code: typeof candidate['code'] === 'string' ? candidate['code'] : undefined,
+      name: typeof candidate['name'] === 'string' ? candidate['name'] : undefined,
+      is_active: typeof candidate['is_active'] === 'boolean' ? candidate['is_active'] : undefined,
     };
   }
 

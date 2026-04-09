@@ -19,3 +19,16 @@ export const guestOnlyGuard: CanActivateFn = async () => {
 
   return authService.isAuthenticated() ? router.createUrlTree(['/home']) : true;
 };
+
+export const adminRoleGuard: CanActivateFn = async () => {
+  const authService = inject(AuthService);
+  const router = inject(Router);
+
+  await authService.ensureInitialized();
+
+  if (!authService.isAuthenticated()) {
+    return router.createUrlTree(['/login']);
+  }
+
+  return authService.canAccessAdmin() ? true : router.createUrlTree(['/home']);
+};
