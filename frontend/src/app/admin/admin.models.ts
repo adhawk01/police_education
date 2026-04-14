@@ -125,6 +125,7 @@ export interface AdminItemDetails {
     city_name?: string | null;
     place_name?: string | null;
     address_line?: string | null;
+    accessibility_notes?: string | null;
     latitude?: number | null;
     longitude?: number | null;
     is_primary?: number | boolean;
@@ -173,6 +174,7 @@ export interface AdminWritePayload {
     city_id?: number | null;
     place_name?: string | null;
     address_line?: string | null;
+    accessibility_notes?: string | null;
   };
   primary_media_file_id?: number | null;
   media_to_add?: Array<{ file_url: string; is_primary: boolean; alt_text?: string }>;

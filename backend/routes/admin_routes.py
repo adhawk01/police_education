@@ -155,6 +155,48 @@ def patch_admin_content_item_status(content_item_id: int):
         return jsonify({"error": "Unexpected server error"}), 500
 
 
+@admin_bp.post("/api/admin/content-items/<int:content_item_id>/submit-for-approval")
+@login_required
+@role_required(permission_code="site_admin")
+def submit_admin_content_item_for_approval(content_item_id: int):
+    """Submit draft content item into pending approval workflow."""
+    service = AdminService()
+    current_user_id = int(g.current_user["id"])
+
+    try:
+        data = service.submit_for_approval(content_item_id, current_user_id)
+        return jsonify(data), 200
+    except AdminValidationError as exc:
+        return jsonify({"error": str(exc)}), 400
+    except AdminNotFoundError as exc:
+        return jsonify({"error": str(exc)}), 404
+    except AdminServiceError as exc:
+        return jsonify({"error": str(exc)}), 500
+    except Exception:
+        return jsonify({"error": "Unexpected server error"}), 500
+
+
+@admin_bp.post("/api/admin/content-items/<int:content_item_id>/approve")
+@login_required
+@role_required(permission_code="approver")
+def approve_admin_content_item(content_item_id: int):
+    """Approve content item that is currently waiting for approval."""
+    service = AdminService()
+    current_user_id = int(g.current_user["id"])
+
+    try:
+        data = service.approve_content(content_item_id, current_user_id)
+        return jsonify(data), 200
+    except AdminValidationError as exc:
+        return jsonify({"error": str(exc)}), 400
+    except AdminNotFoundError as exc:
+        return jsonify({"error": str(exc)}), 404
+    except AdminServiceError as exc:
+        return jsonify({"error": str(exc)}), 500
+    except Exception:
+        return jsonify({"error": "Unexpected server error"}), 500
+
+
 @admin_bp.delete("/api/admin/content-items/<int:content_item_id>")
 @login_required
 @role_required("site_manager", "admin", permission_code="site_admin")

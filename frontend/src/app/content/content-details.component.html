@@ -157,31 +157,11 @@
       <section class="content-panel">
         <div class="content-details-page__accessibility-header">
           <h3>נגישות ומידע נוסף</h3>
-          <button
-            type="button"
-            class="content-details-page__ai-btn"
-            (click)="askAiForAccessibility()"
-            [disabled]="aiAccessibilityLoading"
-            aria-label="ניתוח נגישות בעזרת AI"
-          >
-            <span class="material-icons" aria-hidden="true">auto_awesome</span>
-            @if (aiAccessibilityLoading) {
-              מנתח...
-            } @else {
-              ניתוח AI
-            }
-          </button>
         </div>
 
-        @if (aiAccessibilityLoading) {
-          <p class="content-details-page__muted">מכין עבורך סיכום נגישות מותאם...</p>
-        } @else if (aiAccessibilityError) {
-          <p class="content-details-page__error-text">{{ aiAccessibilityError }}</p>
-        } @else if (aiAccessibilityAnswerHtml) {
-          <div class="content-details-page__ai-answer" [innerHTML]="aiAccessibilityAnswerHtml"></div>
-        } @else if (item.accessibility.has_accessibility_info) {
+        @if (item.accessibility.has_accessibility_info) {
           @if (item.accessibility.text) {
-            <p>{{ item.accessibility.text }}</p>
+            <div class="content-details-page__ai-answer" [innerHTML]="accessibilityTextHtml"></div>
           }
 
           @if (item.accessibility.features.length) {
@@ -195,34 +175,12 @@
       </section>
     </div>
 
-    <section class="content-panel" *ngIf="item.full_description">
+    <section class="content-panel">
       <div class="content-details-page__accessibility-header">
         <h3>תיאור מלא</h3>
-        <button
-          type="button"
-          class="content-details-page__ai-btn"
-          (click)="askAiForDescription()"
-          [disabled]="aiDescriptionLoading"
-          aria-label="מידע כללי בעזרת AI"
-        >
-          <span class="material-icons" aria-hidden="true">auto_awesome</span>
-          @if (aiDescriptionLoading) {
-            מנתח...
-          } @else {
-            מידע AI
-          }
-        </button>
       </div>
 
-      @if (aiDescriptionLoading) {
-        <p class="content-details-page__muted">מכין עבורך מידע כללי על המקום...</p>
-      } @else if (aiDescriptionError) {
-        <p class="content-details-page__error-text">{{ aiDescriptionError }}</p>
-      } @else if (aiDescriptionAnswerHtml) {
-        <div class="content-details-page__ai-answer" [innerHTML]="aiDescriptionAnswerHtml"></div>
-      } @else {
-        <p class="content-details-page__full-description">{{ item.full_description }}</p>
-      }
+      <div class="content-details-page__ai-answer" [innerHTML]="fullDescriptionHtml"></div>
     </section>
 
     <section class="content-panel" *ngIf="item.recommended_items.length">

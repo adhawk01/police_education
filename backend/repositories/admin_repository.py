@@ -122,6 +122,7 @@ class AdminRepository:
                 c.name AS city_name,
                 l.place_name,
                 l.address_line,
+                l.accessibility_notes,
                 l.latitude,
                 l.longitude,
                 cl.is_primary
@@ -361,6 +362,82 @@ class AdminRepository:
                 )
                 conn.commit()
                 return True
+            except Error:
+                conn.rollback()
+                raise
+
+    def get_content_item_status(self, content_item_id: int) -> int | None:
+        """Return the current status id for a content item."""
+        with db_connection() as conn:
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute("SELECT status_id FROM content_items WHERE id = %s LIMIT 1", (content_item_id,))
+            row = cursor.fetchone()
+            if not row:
+                return None
+            return int(row["status_id"])
+
+    def transition_content_item_status(
+        self,
+        content_item_id: int,
+        new_status_id: int,
+        changed_by_user_id: int,
+        notes: str,
+        expected_old_status_id: int | None = None,
+        is_active: bool | None = None,
+        approved_by_user_id: int | None = None,
+    ) -> dict[str, Any]:
+        """Transactionally move a content item to a new status and append history."""
+        select_sql = "SELECT status_id FROM content_items WHERE id = %s LIMIT 1"
+
+        set_clauses = ["status_id = %s"]
+        update_params: list[Any] = [new_status_id]
+
+        if is_active is not None:
+            set_clauses.append("is_active = %s")
+            update_params.append(1 if is_active else 0)
+
+        if approved_by_user_id is not None:
+            set_clauses.append("approved_by_user_id = %s")
+            update_params.append(approved_by_user_id)
+
+        update_sql = f"UPDATE content_items SET {', '.join(set_clauses)} WHERE id = %s"
+
+        history_sql = """
+            INSERT INTO content_status_history (
+                content_item_id,
+                old_status_id,
+                new_status_id,
+                changed_by_user_id,
+                notes
+            )
+            VALUES (%s, %s, %s, %s, %s)
+        """
+
+        with db_connection() as conn:
+            cursor = conn.cursor(dictionary=True)
+            try:
+                cursor.execute(select_sql, (content_item_id,))
+                current_row = cursor.fetchone()
+                if not current_row:
+                    return {"updated": False, "old_status_id": None}
+
+                old_status_id = int(current_row["status_id"])
+                if expected_old_status_id is not None and old_status_id != expected_old_status_id:
+                    conn.rollback()
+                    return {"updated": False, "old_status_id": old_status_id}
+
+                cursor.execute(update_sql, tuple(update_params + [content_item_id]))
+                if cursor.rowcount == 0:
+                    conn.rollback()
+                    return {"updated": False, "old_status_id": old_status_id}
+
+                cursor.execute(
+                    history_sql,
+                    (content_item_id, old_status_id, new_status_id, changed_by_user_id, notes),
+                )
+
+                conn.commit()
+                return {"updated": True, "old_status_id": old_status_id}
             except Error:
                 conn.rollback()
                 raise
@@ -761,6 +838,7 @@ class AdminRepository:
 
         place_name = str(location_data.get("place_name") or "").strip() or "מיקום"
         address_line = str(location_data.get("address_line") or "").strip() or None
+        accessibility_notes = str(location_data.get("accessibility_notes") or "").strip() or None
         latitude = location_data.get("latitude")
         longitude = location_data.get("longitude")
 
@@ -772,20 +850,21 @@ class AdminRepository:
                     city_id = %s,
                     place_name = %s,
                     address_line = %s,
+                    accessibility_notes = %s,
                     latitude = %s,
                     longitude = %s
                 WHERE id = %s
                 """,
-                (area_id, city_id, place_name, address_line, latitude, longitude, int(location_id)),
+                (area_id, city_id, place_name, address_line, accessibility_notes, latitude, longitude, int(location_id)),
             )
             return int(location_id)
 
         cursor.execute(
             """
-            INSERT INTO locations (region_id, city_id, place_name, address_line, latitude, longitude)
-            VALUES (%s, %s, %s, %s, %s, %s)
+            INSERT INTO locations (region_id, city_id, place_name, address_line, accessibility_notes, latitude, longitude)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
             """,
-            (area_id, city_id, place_name, address_line, latitude, longitude),
+            (area_id, city_id, place_name, address_line, accessibility_notes, latitude, longitude),
         )
         return int(cursor.lastrowid)
 

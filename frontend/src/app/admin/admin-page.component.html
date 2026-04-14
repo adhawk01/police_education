@@ -1,13 +1,11 @@
 <section class="admin-page" dir="rtl">
-  <header class="admin-page__header">
-    <div>
-      <p class="admin-page__kicker">ניהול אתר</p>
-      <h1>אזור מנהל תוכן</h1>
-      <p>ניהול תכנים, סינון ועדכון סטטוסים דרך ממשק ניהולי מאובטח.</p>
-    </div>
-
-    <button type="button" class="admin-page__primary-btn" (click)="openCreate()">יצירת תוכן חדש</button>
-  </header>
+  <app-page-hero
+    eyebrow="ניהול אתר"
+    title="אזור מנהל תוכן"
+    subtitle="ניהול תכנים, סינון ועדכון סטטוסים דרך ממשק ניהולי מאובטח."
+  >
+    <button type="button" class="admin-page__hero-btn" pageHeroActions (click)="openCreate()">יצירת תוכן חדש</button>
+  </app-page-hero>
 
   @if (metadataError) {
     <div class="admin-page__notice admin-page__notice--error" role="alert">{{ metadataError }}</div>
@@ -146,11 +144,7 @@
                 </td>
                 <td>{{ item.location?.area || '-' }} / {{ item.location?.city || '-' }}</td>
                 <td>
-                  <select (change)="applyStatus(item, $any($event.target).value)">
-                    @for (status of statusChoices; track status.id) {
-                      <option [value]="status.id" [selected]="status.id === item.status.id">{{ status.name }}</option>
-                    }
-                  </select>
+                  <span>{{ item.status.name || '-' }}</span>
                 </td>
                 <td>
                   <div class="admin-status-toggle" role="group" aria-label="מצב פעילות">
@@ -209,7 +203,12 @@
           <button type="button" (click)="goToPage(page - 1)" [disabled]="page === 1">הקודם</button>
 
           @for (pageItem of visiblePages; track pageItem) {
-            <button type="button" [class.admin-pagination__active]="pageItem === page" (click)="goToPage(pageItem)">
+            <button
+              type="button"
+              [class.admin-pagination__active]="pageItem === page"
+              [attr.aria-current]="pageItem === page ? 'page' : null"
+              (click)="goToPage(pageItem)"
+            >
               {{ pageItem }}
             </button>
           }
@@ -221,7 +220,7 @@
   </section>
 
   @if (editorVisible) {
-    <section class="admin-editor-backdrop" (click)="closeEditor()">
+    <section class="admin-editor-backdrop">
       <section
         class="admin-editor"
         role="dialog"
@@ -231,7 +230,7 @@
       >
         <div class="admin-editor__head">
           <h2>{{ editorMode === 'create' ? 'יצירת תוכן חדש' : 'עריכת תוכן' }}</h2>
-          <button type="button" class="admin-page__secondary-btn" (click)="closeEditor()">סגירה</button>
+          <button type="button" class="admin-page__secondary-btn" (click)="requestClose('close')">סגירה</button>
         </div>
 
         <form class="admin-editor__form" [formGroup]="editorForm" (ngSubmit)="saveItem()">
@@ -327,20 +326,54 @@
           <textarea rows="2" formControlName="short_description"></textarea>
         </label>
 
-        <label class="admin-editor__full-width">
-          <span>תיאור מלא</span>
-          <textarea rows="4" formControlName="full_description"></textarea>
-        </label>
+        <div class="admin-editor__full-width admin-editor__ai-field">
+          <div class="admin-editor__ai-field-head">
+            <span>תיאור מלא</span>
+            <button
+              type="button"
+              class="admin-editor__ai-btn"
+              [disabled]="savingItem || aiFullDescriptionLoading"
+              aria-label="ניתוח תוכן בעזרת AI"
+              (click)="generateAiForFullDescription()"
+            >
+              <span class="material-icons" aria-hidden="true">auto_awesome</span>
+              {{ aiFullDescriptionLoading ? 'מנתח...' : 'ניתוח AI' }}
+            </button>
+          </div>
+          <textarea rows="4" formControlName="full_description" placeholder="לא הוזן תיאור מלא"></textarea>
+          @if (aiFullDescriptionError) {
+            <small class="admin-editor__ai-field-error" role="alert">{{ aiFullDescriptionError }}</small>
+          }
+        </div>
 
         <label>
           <span>סטטוס</span>
-          <select formControlName="status_id" required>
-            <option value="">בחר</option>
-            @for (status of metadata?.statuses ?? []; track status.id) {
-              <option [value]="status.id">{{ status.name }}</option>
-            }
-          </select>
+          <input type="text" [value]="selectedStatusName" disabled />
+          @if (editorMode === 'create') {
+            <small class="admin-muted">תוכן חדש נשמר כטיוטה באופן אוטומטי.</small>
+          }
         </label>
+
+        @if (editorMode === 'edit') {
+          <div class="admin-editor__workflow-actions">
+            <div class="admin-editor__workflow-actions-buttons">
+              @if (canSubmitForApproval) {
+                <button type="button" class="admin-page__secondary-btn" [disabled]="savingItem" (click)="submitForApproval()">
+                  שלח לאישור
+                </button>
+              }
+              @if (canApproveSelectedItem) {
+                <button type="button" class="admin-page__primary-btn" [disabled]="savingItem" (click)="approveSelectedItem()">
+                  אשר תוכן
+                </button>
+              }
+            </div>
+
+            @if (saveError) {
+              <div class="admin-page__notice admin-page__notice--error" role="alert">{{ saveError }}</div>
+            }
+          </div>
+        }
 
         <label>
           <span>תאריך פרסום</span>
@@ -362,12 +395,37 @@
 
             <label>
               <span>עיר</span>
-              <select [value]="editorCityId" (change)="onEditorCityChange($any($event.target).value)">
-                <option value="">בחר עיר</option>
-                @for (city of editorAvailableCities; track city.id) {
-                  <option [value]="city.id">{{ city.name }}</option>
+              <div class="admin-city-picker">
+                <input
+                  type="text"
+                  [value]="editorCityName"
+                  placeholder="הקלד לפחות 2 אותיות"
+                  (input)="onEditorCityChange($any($event.target).value)"
+                  (focus)="onEditorCityFocus()"
+                  (blur)="onEditorCityBlur()"
+                />
+
+                @if (showCitySuggestions) {
+                  <div class="admin-city-picker__menu">
+                    @if (visibleCityOptions.length) {
+                      @for (cityName of visibleCityOptions; track cityName) {
+                        <button
+                          type="button"
+                          class="admin-city-picker__option"
+                          (mousedown)="$event.preventDefault()"
+                          (click)="selectEditorCity(cityName)"
+                        >
+                          {{ cityName }}
+                        </button>
+                      }
+                    } @else if (editorCityName.trim().length >= 2) {
+                      <div class="admin-city-picker__empty">לא נמצאו ערים תואמות באזור שנבחר.</div>
+                    } @else {
+                      <div class="admin-city-picker__empty">בחר אזור ואז התחל להקליד עיר.</div>
+                    }
+                  </div>
                 }
-              </select>
+              </div>
             </label>
 
             <label class="admin-editor__full-width">
@@ -391,6 +449,26 @@
               <span>כתובת</span>
               <input type="text" formControlName="location_address_line" placeholder="רחוב, עיר" />
             </label>
+
+            <div class="admin-editor__full-width admin-editor__ai-field">
+              <div class="admin-editor__ai-field-head">
+                <span>נגישות ומידע נוסף</span>
+                <button
+                  type="button"
+                  class="admin-editor__ai-btn"
+                  [disabled]="savingItem || aiAccessibilityLoading"
+                  aria-label="ניתוח נגישות בעזרת AI"
+                  (click)="generateAiForAccessibilityNotes()"
+                >
+                  <span class="material-icons" aria-hidden="true">auto_awesome</span>
+                  {{ aiAccessibilityLoading ? 'מנתח...' : 'ניתוח AI' }}
+                </button>
+              </div>
+              <textarea rows="3" formControlName="location_accessibility_notes" placeholder="אפשר להזין ידנית או להשתמש ב-AI"></textarea>
+              @if (aiAccessibilityError) {
+                <small class="admin-editor__ai-field-error" role="alert">{{ aiAccessibilityError }}</small>
+              }
+            </div>
           </div>
         </fieldset>
 
@@ -452,10 +530,35 @@
             <button type="submit" class="admin-page__primary-btn" [disabled]="savingItem">
               {{ savingItem ? 'שומר...' : editorMode === 'create' ? 'יצירה' : 'שמירה' }}
             </button>
-            <button type="button" class="admin-page__secondary-btn" (click)="closeEditor()">ביטול</button>
+            <button type="button" class="admin-page__secondary-btn" (click)="requestClose('cancel')">ביטול</button>
           </div>
         </form>
       </section>
+
+      @if (confirmDiscardVisible) {
+        <section class="admin-confirm" role="dialog" aria-modal="true" aria-label="אישור סגירה" (click)="$event.stopPropagation()">
+          <h3>יש שינויים שלא נשמרו</h3>
+          <p>
+            @if (canSaveFromClosePrompt) {
+              האם לשמור את השינויים לפני הסגירה?
+            } @else {
+              אם תסגור עכשיו, השינויים שביצעת יאבדו.
+            }
+          </p>
+
+          @if (saveError) {
+            <div class="admin-page__notice admin-page__notice--error" role="alert">{{ saveError }}</div>
+          }
+
+          <div class="admin-confirm__actions">
+            @if (canSaveFromClosePrompt) {
+              <button type="button" class="admin-page__primary-btn" [disabled]="savingItem" (click)="saveAndCloseFromPrompt()">שמור וסגור</button>
+            }
+            <button type="button" class="admin-page__secondary-btn" [disabled]="savingItem" (click)="discardChangesAndClose()">סגור ללא שמירה</button>
+            <button type="button" class="admin-page__secondary-btn" [disabled]="savingItem" (click)="continueEditing()">המשך עריכה</button>
+          </div>
+        </section>
+      }
     </section>
   }
 </section>

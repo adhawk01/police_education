@@ -20,30 +20,30 @@ class AuthRepository:
     @staticmethod
     def _base_user_select() -> str:
         return """
-            SELECT
-                u.id,
-                u.full_name,
-                u.email,
-                u.password_hash,
-                u.status_id,
-                us.code AS status_code,
-                us.name AS status_name,
-                us.is_active AS status_is_active,
-                (
-                    SELECT GROUP_CONCAT(DISTINCT r.code ORDER BY r.code SEPARATOR ',')
-                    FROM user_roles ur
-                    JOIN roles r ON r.id = ur.role_id
-                    WHERE ur.user_id = u.id
-                ) AS role_codes_blob,
-                (
-                    SELECT GROUP_CONCAT(DISTINCT p.code ORDER BY p.code SEPARATOR ',')
-                    FROM user_roles urp
-                    JOIN role_permissions rp ON rp.role_id = urp.role_id
-                    JOIN permissions p ON p.id = rp.permission_id
-                    WHERE urp.user_id = u.id
-                ) AS permission_codes_blob
-            FROM users u
-            JOIN users_statuses us ON us.id = u.status_id
+                SELECT
+                    u.id,
+                    u.full_name,
+                    u.email,
+                    u.password_hash,
+                    u.status_id,
+                    us.code AS status_code,
+                    us.name AS status_name,
+                    us.is_active AS status_is_active,
+                    (
+                        SELECT GROUP_CONCAT(DISTINCT r.code ORDER BY r.code SEPARATOR ',')
+                        FROM user_roles ur
+                        JOIN roles r ON r.id = ur.role_id
+                        WHERE ur.user_id = u.id
+                    ) AS role_codes_blob,
+                    (
+                        SELECT GROUP_CONCAT(DISTINCT p.code ORDER BY p.code SEPARATOR ',')
+                        FROM user_roles urp
+                        JOIN role_permissions rp ON rp.role_id = urp.role_id
+                        JOIN permissions p ON p.id = rp.permission_id
+                        WHERE urp.user_id = u.id
+                    ) AS permission_codes_blob
+                FROM users u
+                JOIN users_statuses us ON us.id = u.status_id
         """
 
     def get_user_by_email(self, email: str) -> dict[str, Any] | None:
