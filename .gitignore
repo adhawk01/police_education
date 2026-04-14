@@ -1,13 +1,19 @@
-# Python backend
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Python virtual env
 backend/.venv/
 backend/venv/
-backend/__pycache__/
-backend/*.pyc
 
 # Environment variables
 .env
 backend/.env
 frontend/.env
+
+# Uploads
+backend/uploads/
 
 # Angular / Node
 frontend/node_modules/
