@@ -141,6 +141,56 @@
   min-height: auto;
 }
 
+.admin-city-picker {
+  position: relative;
+}
+
+.admin-city-picker__menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  inset-inline: 0;
+  z-index: 30;
+  max-height: 240px;
+  overflow-y: auto;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 16px 36px rgba(15, 23, 42, 0.16);
+  padding: 6px;
+}
+
+.admin-city-picker__option {
+  width: 100%;
+  border: none;
+  background: transparent;
+  text-align: right;
+  font: inherit;
+  padding: 10px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.admin-city-picker__option:hover {
+  background: #eff6ff;
+}
+
+.admin-city-picker__empty,
+.admin-city-picker__warning {
+  padding: 10px 12px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.admin-city-picker__empty {
+  color: #64748b;
+}
+
+.admin-city-picker__warning {
+  color: #991b1b;
+  background: #fef2f2;
+  border-radius: 8px;
+}
+
 .admin-filters__actions {
   display: flex;
   align-items: end;
@@ -354,10 +404,20 @@
   justify-content: center;
 }
 
+.admin-pagination button:disabled {
+  background: #e2e8f0;
+  border-color: #cbd5e1;
+  color: #94a3b8;
+  cursor: not-allowed;
+  opacity: 1;
+}
+
 .admin-pagination__active {
-  background: #dbeafe;
-  border-color: #93c5fd;
-  color: #0f3b63;
+  background: #1d4ed8 !important;
+  border-color: #1d4ed8 !important;
+  color: #ffffff !important;
+  font-weight: 800;
+  box-shadow: 0 0 0 2px #bfdbfe;
 }
 
 .admin-editor-backdrop {
@@ -521,6 +581,76 @@
   justify-content: flex-start;
 }
 
+.admin-editor__ai-field {
+  display: grid;
+  gap: 6px;
+}
+
+.admin-editor__ai-field-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.admin-editor__ai-field-head > span {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.admin-editor__ai-field-error {
+  color: #991b1b;
+  font-size: 12px;
+}
+
+.admin-editor__ai-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  border: 1px solid #cbd5e1;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #0f172a;
+  padding: 0 12px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.admin-editor__ai-btn .material-icons {
+  font-size: 18px;
+}
+
+.admin-editor__ai-btn:hover:not(:disabled) {
+  background: #f8fafc;
+}
+
+.admin-editor__ai-btn:disabled {
+  opacity: 0.7;
+  cursor: default;
+}
+
+
+.admin-editor__workflow-actions {
+  display: grid;
+  gap: 6px;
+  align-content: start;
+}
+
+.admin-editor__workflow-actions::before {
+  content: 'פעולות סטטוס';
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.admin-editor__workflow-actions-buttons {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
 /* ===== Media manager ===== */
 .admin-media__grid {
   display: flex;

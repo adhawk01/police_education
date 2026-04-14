@@ -4,7 +4,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { forkJoin, of } from 'rxjs';
 import { finalize, switchMap, tap } from 'rxjs/operators';
-import { extractApiErrorMessage } from '../auth/auth.service';
+import { AuthService, extractApiErrorMessage } from '../auth/auth.service';
 import {
   AdminItemDetails,
   AdminListItem,
@@ -39,6 +39,7 @@ type CloseIntent = 'close' | 'cancel' | 'backdrop' | 'escape';
 })
 export class AdminPageComponent implements OnInit {
   private readonly adminService = inject(AdminService);
+  private readonly authService = inject(AuthService);
   private readonly formBuilder = inject(FormBuilder);
   private readonly changeDetectorRef = inject(ChangeDetectorRef);
   private readonly destroyRef = inject(DestroyRef);
@@ -64,6 +65,7 @@ export class AdminPageComponent implements OnInit {
     location_id: [''],
     location_place_name: [''],
     location_address_line: [''],
+    location_accessibility_notes: [''],
     primary_media_file_id: [''],
     is_featured: false,
     is_active: true,
@@ -89,11 +91,14 @@ export class AdminPageComponent implements OnInit {
   isDraggingOver = false;
   editorAreaId = '';
   editorCityId = '';
+  editorCityName = '';
+  showCitySuggestions = false;
   confirmDiscardVisible = false;
   closeIntent: CloseIntent | null = null;
 
   private initialEditorAreaId = '';
   private initialEditorCityId = '';
+  private initialEditorCityName = '';
   private initialMediaSignature = '';
 
   selectedItem: AdminItemDetails | null = null;
@@ -109,9 +114,13 @@ export class AdminPageComponent implements OnInit {
   listError = '';
   metadataError = '';
   saveError = '';
+  aiFullDescriptionLoading = false;
+  aiAccessibilityLoading = false;
+  aiFullDescriptionError = '';
+  aiAccessibilityError = '';
 
   page = 1;
-  pageSize = 20;
+  pageSize = 10;
   totalCount = 0;
   sortBy = 'title_asc';
   private initialListLoaded = false;
@@ -132,6 +141,10 @@ export class AdminPageComponent implements OnInit {
           this.filtersForm.controls.city_ids.setValue(nextCityIds);
         }
       });
+
+    this.authService.ensureInitialized().then(() => {
+      this.changeDetectorRef.markForCheck();
+    });
 
     this.loadMetadataAndList();
   }
@@ -170,6 +183,33 @@ export class AdminPageComponent implements OnInit {
     return this.metadata?.statuses ?? [];
   }
 
+  get canSubmitForApproval(): boolean {
+    if (this.editorMode !== 'edit' || !this.selectedItemId || !this.selectedItem) {
+      return false;
+    }
+
+    return this.hasSiteAdminPermission() && this.isDraftStatus(this.selectedItem.status);
+  }
+
+  get canApproveSelectedItem(): boolean {
+    if (this.editorMode !== 'edit' || !this.selectedItemId || !this.selectedItem) {
+      return false;
+    }
+
+    return this.hasApproverPermission() && this.isPendingApprovalStatus(this.selectedItem.status);
+  }
+
+  get selectedStatusName(): string {
+    const fallback = this.selectedItem?.status?.name ?? '';
+    const statusId = this.toNumberOrNull(this.editorForm.controls.status_id.value);
+    if (statusId === null) {
+      return fallback;
+    }
+
+    const status = this.statusChoices.find((item) => item.id === statusId);
+    return status?.name ?? fallback;
+  }
+
   get editorAvailableCities() {
     if (!this.metadata) {
       return [];
@@ -183,6 +223,25 @@ export class AdminPageComponent implements OnInit {
     return this.metadata.cities.filter((city) => city.area_id === areaId);
   }
 
+  get editorCityOptions(): string[] {
+    const names = this.editorAvailableCities.map((city) => city.name);
+
+    return Array.from(new Set(names));
+  }
+
+  get visibleCityOptions(): string[] {
+    const query = this.editorCityName.trim().toLowerCase();
+    const options = this.editorCityOptions;
+
+    if (!query) {
+      return options.slice(0, 20);
+    }
+
+    return options
+      .filter((cityName) => cityName.toLowerCase().includes(query))
+      .slice(0, 20);
+  }
+
   get editorAvailableLocations() {
     if (!this.metadata) {
       return [];
@@ -190,8 +249,9 @@ export class AdminPageComponent implements OnInit {
 
     const areaId = this.toNumberOrNull(this.editorAreaId);
     const cityId = this.toNumberOrNull(this.editorCityId);
+    const locations = this.metadata.locations ?? [];
 
-    return this.metadata.locations.filter((location) => {
+    return locations.filter((location) => {
       if (areaId !== null && location.area_id !== areaId) {
         return false;
       }
@@ -265,6 +325,9 @@ export class AdminPageComponent implements OnInit {
     this.isDraggingOver = false;
     this.editorAreaId = '';
     this.editorCityId = '';
+    this.editorCityName = '';
+    this.showCitySuggestions = false;
+    this.resetAiStates();
     this.resetEditorForm();
     this.captureEditorSnapshot();
   }
@@ -280,6 +343,9 @@ export class AdminPageComponent implements OnInit {
     this.isDraggingOver = false;
     this.editorAreaId = '';
     this.editorCityId = '';
+    this.editorCityName = '';
+    this.showCitySuggestions = false;
+    this.resetAiStates();
     this.resetEditorForm();
     this.captureEditorSnapshot();
 
@@ -311,6 +377,8 @@ export class AdminPageComponent implements OnInit {
     this.saveError = '';
     this.editorAreaId = '';
     this.editorCityId = '';
+    this.editorCityName = '';
+    this.showCitySuggestions = false;
     this.setBodyScrollLock(false);
   }
 
@@ -358,14 +426,49 @@ export class AdminPageComponent implements OnInit {
       && !this.editorAvailableCities.some((city) => city.id === selectedCity)
     ) {
       this.editorCityId = '';
+      this.editorCityName = '';
+    }
+
+    if (this.editorCityId) {
+      const selectedCity = this.editorAvailableCities.find((city) => String(city.id) === this.editorCityId);
+      this.editorCityName = selectedCity?.name ?? this.editorCityName;
     }
 
     this.syncLocationWithAreaCity();
     this.changeDetectorRef.markForCheck();
   }
 
-  onEditorCityChange(rawCityId: string): void {
-    this.editorCityId = rawCityId || '';
+  onEditorCityChange(rawValue: string): void {
+    const normalized = rawValue.trim();
+    this.editorCityName = normalized;
+    this.showCitySuggestions = true;
+
+    const matchedCity = this.editorAvailableCities.find((city) => city.name === normalized);
+    this.editorCityId = matchedCity ? String(matchedCity.id) : '';
+
+    this.syncLocationWithAreaCity();
+    this.changeDetectorRef.markForCheck();
+  }
+
+  onEditorCityFocus(): void {
+    this.showCitySuggestions = true;
+    this.changeDetectorRef.markForCheck();
+  }
+
+  onEditorCityBlur(): void {
+    setTimeout(() => {
+      this.showCitySuggestions = false;
+      this.changeDetectorRef.markForCheck();
+    }, 150);
+  }
+
+  selectEditorCity(cityName: string): void {
+    this.editorCityName = cityName;
+    this.showCitySuggestions = false;
+
+    const matchedCity = this.editorAvailableCities.find((city) => city.name === cityName);
+    this.editorCityId = matchedCity ? String(matchedCity.id) : '';
+
     this.syncLocationWithAreaCity();
     this.changeDetectorRef.markForCheck();
   }
@@ -379,7 +482,7 @@ export class AdminPageComponent implements OnInit {
       return;
     }
 
-    const selectedLocation = this.metadata.locations.find((location) => location.id === locationId);
+    const selectedLocation = (this.metadata.locations ?? []).find((location) => location.id === locationId);
     if (!selectedLocation) {
       this.changeDetectorRef.markForCheck();
       return;
@@ -387,6 +490,7 @@ export class AdminPageComponent implements OnInit {
 
     this.editorAreaId = String(selectedLocation.area_id);
     this.editorCityId = selectedLocation.city_id ? String(selectedLocation.city_id) : '';
+    this.editorCityName = this.editorAvailableCities.find((city) => String(city.id) === this.editorCityId)?.name ?? '';
     this.editorForm.controls.location_place_name.setValue(selectedLocation.place_name ?? '');
     this.editorForm.controls.location_address_line.setValue(selectedLocation.address_line ?? '');
     this.changeDetectorRef.markForCheck();
@@ -455,27 +559,95 @@ export class AdminPageComponent implements OnInit {
       });
   }
 
-  applyStatus(item: AdminListItem, rawStatusId: string): void {
-    const statusId = this.toNumberOrNull(rawStatusId);
-    if (statusId === null || this.savingItem) {
+  generateAiForFullDescription(): void {
+    if (this.aiFullDescriptionLoading || this.savingItem) {
       return;
     }
 
-    const prevStatusId = item.status.id;
-    const prevStatusName = item.status.name;
-    const prevStatusCode = item.status.code;
-
-    // Optimistic update.
-    const newStatus = this.metadata?.statuses.find((s) => s.id === statusId);
-    if (newStatus) {
-      item.status = { id: newStatus.id, code: newStatus.code, name: newStatus.name };
+    const title = this.editorForm.controls.title.value.trim();
+    if (!title) {
+      this.aiFullDescriptionError = 'יש להזין כותרת לפני הפקת תוכן בעזרת AI.';
       this.changeDetectorRef.markForCheck();
+      return;
+    }
+
+    this.aiFullDescriptionLoading = true;
+    this.aiFullDescriptionError = '';
+
+    this.adminService.askAi(this.buildGeneralInfoPrompt(title))
+      .pipe(
+        finalize(() => {
+          this.aiFullDescriptionLoading = false;
+          this.changeDetectorRef.markForCheck();
+        })
+      )
+      .subscribe({
+        next: (payload) => {
+          const answer = this.extractAiAnswer(payload);
+          if (!answer) {
+            this.aiFullDescriptionError = 'לא התקבלה תשובה תקינה ממנוע ה-AI.';
+            return;
+          }
+
+          const existing = this.editorForm.controls.full_description.value.trim();
+          this.editorForm.controls.full_description.setValue(existing ? `${existing}\n\n${answer}` : answer);
+          this.editorForm.controls.full_description.markAsDirty();
+        },
+        error: () => {
+          this.aiFullDescriptionError = 'לא ניתן לקבל כרגע תשובת AI. נסו שוב בעוד רגע.';
+        }
+      });
+  }
+
+  generateAiForAccessibilityNotes(): void {
+    if (this.aiAccessibilityLoading || this.savingItem) {
+      return;
+    }
+
+    const title = this.editorForm.controls.title.value.trim();
+    if (!title) {
+      this.aiAccessibilityError = 'יש להזין כותרת לפני הפקת תוכן בעזרת AI.';
+      this.changeDetectorRef.markForCheck();
+      return;
+    }
+
+    this.aiAccessibilityLoading = true;
+    this.aiAccessibilityError = '';
+
+    this.adminService.askAi(this.buildAccessibilityPrompt(title))
+      .pipe(
+        finalize(() => {
+          this.aiAccessibilityLoading = false;
+          this.changeDetectorRef.markForCheck();
+        })
+      )
+      .subscribe({
+        next: (payload) => {
+          const answer = this.extractAiAnswer(payload);
+          if (!answer) {
+            this.aiAccessibilityError = 'לא התקבלה תשובה תקינה ממנוע ה-AI.';
+            return;
+          }
+
+          const existing = this.editorForm.controls.location_accessibility_notes.value.trim();
+          this.editorForm.controls.location_accessibility_notes.setValue(existing ? `${existing}\n\n${answer}` : answer);
+          this.editorForm.controls.location_accessibility_notes.markAsDirty();
+        },
+        error: () => {
+          this.aiAccessibilityError = 'לא ניתן לקבל כרגע תשובת AI. נסו שוב בעוד רגע.';
+        }
+      });
+  }
+
+  submitForApproval(): void {
+    if (!this.selectedItemId || this.savingItem || !this.canSubmitForApproval) {
+      return;
     }
 
     this.savingItem = true;
     this.saveError = '';
 
-    this.adminService.patchContentItemStatus(item.id, { status_id: statusId, is_active: item.is_active })
+    this.adminService.submitForApproval(this.selectedItemId)
       .pipe(
         finalize(() => {
           this.savingItem = false;
@@ -484,14 +656,41 @@ export class AdminPageComponent implements OnInit {
       )
       .subscribe({
         next: (updated) => {
-          item.status = { id: updated.status.id, code: updated.status.code, name: updated.status.name };
-          this.changeDetectorRef.markForCheck();
+          this.selectedItem = updated;
+          this.editorForm.controls.status_id.setValue(String(updated.status.id));
+          this.captureEditorSnapshot();
+          this.loadList();
         },
         error: (error: unknown) => {
-          // Revert optimistic change.
-          item.status = { id: prevStatusId, code: prevStatusCode, name: prevStatusName };
-          this.saveError = extractApiErrorMessage(error, 'עדכון הסטטוס נכשל.');
+          this.saveError = extractApiErrorMessage(error, 'שליחה לאישור נכשלה.');
+        }
+      });
+  }
+
+  approveSelectedItem(): void {
+    if (!this.selectedItemId || this.savingItem || !this.canApproveSelectedItem) {
+      return;
+    }
+
+    this.savingItem = true;
+    this.saveError = '';
+
+    this.adminService.approveContent(this.selectedItemId)
+      .pipe(
+        finalize(() => {
+          this.savingItem = false;
           this.changeDetectorRef.markForCheck();
+        })
+      )
+      .subscribe({
+        next: (updated) => {
+          this.selectedItem = updated;
+          this.editorForm.controls.status_id.setValue(String(updated.status.id));
+          this.captureEditorSnapshot();
+          this.loadList();
+        },
+        error: (error: unknown) => {
+          this.saveError = extractApiErrorMessage(error, 'אישור התוכן נכשל.');
         }
       });
   }
@@ -519,7 +718,7 @@ export class AdminPageComponent implements OnInit {
     this.savingItem = true;
     this.saveError = '';
 
-    this.adminService.patchContentItemStatus(item.id, { status_id: archivedStatus.id, is_active: item.is_active })
+    this.adminService.deactivateContentItem(item.id)
       .pipe(
         finalize(() => {
           this.savingItem = false;
@@ -593,7 +792,10 @@ export class AdminPageComponent implements OnInit {
       )
       .subscribe({
         next: (response) => {
-          this.metadata = response;
+          this.metadata = {
+            ...response,
+            locations: response.locations ?? [],
+          };
 
           if (!this.initialListLoaded) {
             this.filtersForm.controls.status_ids.setValue(this.defaultStatusIdsExcludingArchive());
@@ -706,7 +908,7 @@ export class AdminPageComponent implements OnInit {
   }
 
   private resetEditorForm(): void {
-    const defaultStatus = this.metadata?.statuses?.[0]?.id;
+    const defaultStatus = this.resolveDraftStatusId() ?? this.metadata?.statuses?.[0]?.id;
     const defaultType = this.metadata?.content_types?.[0]?.id;
 
     this.editorForm.reset({
@@ -721,6 +923,7 @@ export class AdminPageComponent implements OnInit {
       location_id: '',
       location_place_name: '',
       location_address_line: '',
+      location_accessibility_notes: '',
       primary_media_file_id: '',
       is_featured: false,
       is_active: true,
@@ -754,6 +957,7 @@ export class AdminPageComponent implements OnInit {
       location_id: details.location?.location_id ? String(details.location.location_id) : '',
       location_place_name: details.location?.place_name ?? '',
       location_address_line: details.location?.address_line ?? '',
+      location_accessibility_notes: details.location?.accessibility_notes ?? '',
       primary_media_file_id: details.media?.[0]?.media_file_id ? String(details.media[0].media_file_id) : '',
       is_featured: details.is_featured,
       is_active: details.is_active,
@@ -775,6 +979,7 @@ export class AdminPageComponent implements OnInit {
 
     this.editorAreaId = details.location?.area_id ? String(details.location.area_id) : '';
     this.editorCityId = details.location?.city_id ? String(details.location.city_id) : '';
+    this.editorCityName = details.location?.city_name ?? '';
     this.syncLocationWithAreaCity();
   }
 
@@ -835,12 +1040,47 @@ export class AdminPageComponent implements OnInit {
     };
   }
 
+  private resolveDraftStatusId(): number | null {
+    const statuses = this.metadata?.statuses ?? [];
+    const byCode = statuses.find((status) => (status.code || '').trim().toLowerCase() === 'draft');
+    if (byCode) {
+      return byCode.id;
+    }
+
+    const byName = statuses.find((status) => status.name.trim() === 'טיוטא');
+    return byName?.id ?? null;
+  }
+
+  private hasSiteAdminPermission(): boolean {
+    return this.authService.hasPermission('site_admin');
+  }
+
+  private hasApproverPermission(): boolean {
+    return this.authService.hasPermission('approver');
+  }
+
+  private isDraftStatus(status: { id: number; code?: string; name?: string }): boolean {
+    const code = (status.code || '').trim().toLowerCase();
+    const name = (status.name || '').trim();
+    return code === 'draft' || name === 'טיוטא';
+  }
+
+  private isPendingApprovalStatus(status: { id: number; code?: string; name?: string }): boolean {
+    const code = (status.code || '').trim().toLowerCase();
+    const name = (status.name || '').trim();
+    return code === 'pending_approval' || code === 'awaiting_approval' || code === 'pending' || name === 'ממתין לאישור';
+  }
+
   private hasPendingEditorChanges(): boolean {
     if (this.editorForm.dirty) {
       return true;
     }
 
     if (this.editorAreaId !== this.initialEditorAreaId || this.editorCityId !== this.initialEditorCityId) {
+      return true;
+    }
+
+    if (this.editorCityName !== this.initialEditorCityName) {
       return true;
     }
 
@@ -851,6 +1091,7 @@ export class AdminPageComponent implements OnInit {
     this.editorForm.markAsPristine();
     this.initialEditorAreaId = this.editorAreaId;
     this.initialEditorCityId = this.editorCityId;
+    this.initialEditorCityName = this.editorCityName;
     this.initialMediaSignature = this.currentMediaSignature();
   }
 
@@ -871,8 +1112,9 @@ export class AdminPageComponent implements OnInit {
     const cityId = this.toNumberOrNull(this.editorCityId);
     const placeName = this.nullIfEmpty(this.editorForm.controls.location_place_name.value);
     const addressLine = this.nullIfEmpty(this.editorForm.controls.location_address_line.value);
+    const accessibilityNotes = this.nullIfEmpty(this.editorForm.controls.location_accessibility_notes.value);
 
-    if (!placeName && !addressLine) {
+    if (!placeName && !addressLine && !accessibilityNotes) {
       return null;
     }
 
@@ -881,6 +1123,7 @@ export class AdminPageComponent implements OnInit {
       city_id: cityId,
       place_name: placeName,
       address_line: addressLine,
+      accessibility_notes: accessibilityNotes,
     };
   }
 
@@ -1004,16 +1247,21 @@ export class AdminPageComponent implements OnInit {
     return forkJoin(uploads$).pipe(switchMap(() => of(undefined as void)));
   }
 
-  private requiredNumber(value: string): number {
+  private requiredNumber(value: unknown): number {
     return Number(value);
   }
 
-  private toNumberOrNull(value: string | null | undefined): number | null {
-    if (!value || !value.trim()) {
+  private toNumberOrNull(value: unknown): number | null {
+    if (value === null || value === undefined) {
       return null;
     }
 
-    const parsed = Number(value);
+    const normalized = String(value).trim();
+    if (!normalized) {
+      return null;
+    }
+
+    const parsed = Number(normalized);
     return Number.isFinite(parsed) ? parsed : null;
   }
 
@@ -1037,12 +1285,12 @@ export class AdminPageComponent implements OnInit {
     return value === true || value === 1 || value === '1';
   }
 
-  private nullIfEmpty(value: string | null | undefined): string | null {
-    if (!value) {
+  private nullIfEmpty(value: unknown): string | null {
+    if (value === null || value === undefined) {
       return null;
     }
 
-    const normalized = value.trim();
+    const normalized = String(value).trim();
     return normalized ? normalized : null;
   }
 
@@ -1054,12 +1302,12 @@ export class AdminPageComponent implements OnInit {
     return String(value);
   }
 
-  private toDateTimePayload(value: string | null | undefined): string | null {
-    if (!value) {
+  private toDateTimePayload(value: unknown): string | null {
+    if (value === null || value === undefined) {
       return null;
     }
 
-    const normalized = value.trim();
+    const normalized = String(value).trim();
     if (!normalized) {
       return null;
     }
@@ -1124,5 +1372,72 @@ export class AdminPageComponent implements OnInit {
 
   private setBodyScrollLock(locked: boolean): void {
     document.body.style.overflow = locked ? 'hidden' : '';
+  }
+
+  private resetAiStates(): void {
+    this.aiFullDescriptionLoading = false;
+    this.aiAccessibilityLoading = false;
+    this.aiFullDescriptionError = '';
+    this.aiAccessibilityError = '';
+  }
+
+  private buildAccessibilityPrompt(title: string): string {
+    const normalizedTitle = title.replace(/\s+/g, ' ').trim();
+    const prompt =
+      `ענה בעברית בלבד וב MarkDown נקי ללא סימוני קוד. ` +
+      `חפש באתרי אינטרנט רלוונטים וסכם מידע כללי על המקום ודגש על נגישות ל"${normalizedTitle}". ` +
+      `ענה בדיוק במבנה : ## תמונת מצב ## נגישות ## מה לבדוק לפני שמגיעים ומתחת לכל כותרת 2 - 4 סעיפים קצרים ומעשיים.`;
+
+    return prompt.length > 450 ? prompt.slice(0, 450) : prompt;
+  }
+
+  private buildGeneralInfoPrompt(title: string): string {
+    const normalizedTitle = title.replace(/\s+/g, ' ').trim();
+    const prompt =
+      `ענה בעברית בלבד וב MarkDown נקי ללא סימוני קוד. ` +
+      `חפש באתרי אינטרנט רלוונטים וסכם מידע כללי על המקום "${normalizedTitle}". ` +
+      `ענה בדיוק במבנה : ## תמונת מצב ## מה כדאי לדעת לפני שמגיעים ומתחת לכל כותרת 2 - 4 סעיפים קצרים ומעשיים.`;
+
+    return prompt.length > 450 ? prompt.slice(0, 450) : prompt;
+  }
+
+  private extractAiAnswer(payload: unknown): string {
+    if (!payload || typeof payload !== 'object') {
+      return '';
+    }
+
+    const response = payload as {
+      answer?: unknown;
+      response?: unknown;
+      text?: unknown;
+      result?: unknown;
+      data?: { answer?: unknown; response?: unknown; text?: unknown };
+    };
+
+    const candidates = [
+      response.answer,
+      response.response,
+      response.text,
+      response.result,
+      response.data?.answer,
+      response.data?.response,
+      response.data?.text,
+    ];
+
+    for (const candidate of candidates) {
+      if (typeof candidate === 'string' && candidate.trim()) {
+        return this.normalizeAiAnswer(candidate);
+      }
+    }
+
+    return '';
+  }
+
+  private normalizeAiAnswer(answer: string): string {
+    return answer
+      .replace(/^```(?:markdown|md)?\s*/i, '')
+      .replace(/\s*```\s*$/i, '')
+      .replace(/^```[a-zA-Z]*\s*$/gm, '')
+      .trim();
   }
 }

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from typing import Any
 from urllib.error import URLError
 from urllib.parse import urlencode
@@ -67,6 +68,11 @@ class AdminService:
 
     def create_content_item(self, payload: dict[str, Any], current_user_id: int) -> dict[str, Any]:
         normalized = self._normalize_write_payload(payload)
+        normalized["status_id"] = self._resolve_status_id(
+            code_candidates=["draft"],
+            name_candidates=["טיוטא"],
+            error_message="Draft status is not configured",
+        )
         self._validate_write_payload(normalized)
         self._attach_geo_coordinates(normalized)
 
@@ -87,7 +93,13 @@ class AdminService:
         if content_item_id <= 0:
             raise AdminNotFoundError("Content item not found")
 
+        current_status_id = self._repository.get_content_item_status(content_item_id)
+        if current_status_id is None:
+            raise AdminNotFoundError("Content item not found")
+
         normalized = self._normalize_write_payload(payload)
+        # Status updates are handled only via dedicated workflow transactions.
+        normalized["status_id"] = current_status_id
         self._validate_write_payload(normalized)
         self._attach_geo_coordinates(normalized)
 
@@ -111,6 +123,10 @@ class AdminService:
         if content_item_id <= 0:
             raise AdminNotFoundError("Content item not found")
 
+        current_status_id = self._repository.get_content_item_status(content_item_id)
+        if current_status_id is None:
+            raise AdminNotFoundError("Content item not found")
+
         status_id = payload.get("status_id")
         if not str(status_id).isdigit():
             raise AdminValidationError("status_id is required and must be numeric")
@@ -118,6 +134,9 @@ class AdminService:
         status_id = int(status_id)
         if not self._repository.is_valid_id_in_table("content_item_statuses", status_id):
             raise AdminValidationError("status_id is invalid")
+
+        if status_id != current_status_id:
+            raise AdminValidationError("Status can only be changed via workflow transactions")
 
         is_active = payload.get("is_active")
         if is_active is not None:
@@ -145,14 +164,108 @@ class AdminService:
         except Exception as exc:
             raise AdminServiceError(f"Failed to patch content item status: {exc}") from exc
 
+    def submit_for_approval(self, content_item_id: int, current_user_id: int) -> dict[str, Any]:
+        if content_item_id <= 0:
+            raise AdminNotFoundError("Content item not found")
+
+        draft_status_id = self._resolve_status_id(
+            code_candidates=["draft"],
+            name_candidates=["טיוטא"],
+            error_message="Draft status is not configured",
+        )
+        pending_status_id = self._resolve_status_id(
+            code_candidates=["pending_approval", "awaiting_approval", "pending"],
+            name_candidates=["ממתין לאישור"],
+            error_message="Pending approval status is not configured",
+        )
+
+        try:
+            transitioned = self._repository.transition_content_item_status(
+                content_item_id=content_item_id,
+                new_status_id=pending_status_id,
+                changed_by_user_id=current_user_id,
+                notes="Submitted for approval",
+                expected_old_status_id=draft_status_id,
+            )
+            if not transitioned.get("updated"):
+                old_status_id = transitioned.get("old_status_id")
+                if old_status_id is None:
+                    raise AdminNotFoundError("Content item not found")
+                raise AdminValidationError("Only draft content can be submitted for approval")
+
+            row = self._repository.get_content_item_for_edit(content_item_id)
+            if not row:
+                raise AdminNotFoundError("Content item not found")
+            return serialize_admin_item_details(row)
+        except (AdminValidationError, AdminNotFoundError):
+            raise
+        except Exception as exc:
+            raise AdminServiceError(f"Failed to submit content for approval: {exc}") from exc
+
+    def approve_content(self, content_item_id: int, current_user_id: int) -> dict[str, Any]:
+        if content_item_id <= 0:
+            raise AdminNotFoundError("Content item not found")
+
+        pending_status_id = self._resolve_status_id(
+            code_candidates=["pending_approval", "awaiting_approval", "pending"],
+            name_candidates=["ממתין לאישור"],
+            error_message="Pending approval status is not configured",
+        )
+        approved_status_id = self._resolve_status_id(
+            code_candidates=["published", "approved"],
+            name_candidates=["פורסם", "מאושר"],
+            error_message="Published status is not configured",
+        )
+
+        try:
+            transitioned = self._repository.transition_content_item_status(
+                content_item_id=content_item_id,
+                new_status_id=approved_status_id,
+                changed_by_user_id=current_user_id,
+                notes="Approved",
+                expected_old_status_id=pending_status_id,
+                approved_by_user_id=current_user_id,
+            )
+            if not transitioned.get("updated"):
+                old_status_id = transitioned.get("old_status_id")
+                if old_status_id is None:
+                    raise AdminNotFoundError("Content item not found")
+                raise AdminValidationError("Only pending content can be approved")
+
+            row = self._repository.get_content_item_for_edit(content_item_id)
+            if not row:
+                raise AdminNotFoundError("Content item not found")
+            return serialize_admin_item_details(row)
+        except (AdminValidationError, AdminNotFoundError):
+            raise
+        except Exception as exc:
+            raise AdminServiceError(f"Failed to approve content: {exc}") from exc
+
     def deactivate_content_item(self, content_item_id: int, current_user_id: int) -> dict[str, Any]:
         """Safe delete behavior for v1: mark inactive and move to archived status."""
+        if content_item_id <= 0:
+            raise AdminNotFoundError("Content item not found")
+
         archived_status = self._resolve_archived_status_id()
-        return self.patch_status(
-            content_item_id,
-            {"status_id": archived_status, "is_active": False},
-            current_user_id,
-        )
+        try:
+            transitioned = self._repository.transition_content_item_status(
+                content_item_id=content_item_id,
+                new_status_id=archived_status,
+                changed_by_user_id=current_user_id,
+                notes="Archived via admin API",
+                is_active=False,
+            )
+            if not transitioned.get("updated"):
+                raise AdminNotFoundError("Content item not found")
+
+            row = self._repository.get_content_item_for_edit(content_item_id)
+            if not row:
+                raise AdminNotFoundError("Content item not found")
+            return serialize_admin_item_details(row)
+        except (AdminValidationError, AdminNotFoundError):
+            raise
+        except Exception as exc:
+            raise AdminServiceError(f"Failed to archive content item: {exc}") from exc
 
     def get_admin_metadata(self) -> dict[str, list[dict[str, Any]]]:
         try:
@@ -161,12 +274,31 @@ class AdminService:
             raise AdminServiceError(f"Failed to load admin metadata: {exc}") from exc
 
     def _resolve_archived_status_id(self) -> int:
+        return self._resolve_status_id(
+            code_candidates=["archived"],
+            name_candidates=["בארכיון"],
+            error_message="Archived status is not configured",
+        )
+
+    def _resolve_status_id(
+        self,
+        code_candidates: list[str],
+        name_candidates: list[str],
+        error_message: str,
+    ) -> int:
         metadata = self._repository.get_admin_metadata()
         statuses = metadata.get("statuses") or []
+
+        normalized_codes = {str(code).strip().lower() for code in code_candidates if str(code).strip()}
+        normalized_names = {str(name).strip() for name in name_candidates if str(name).strip()}
+
         for status in statuses:
-            if str(status.get("code", "")).strip().lower() == "archived":
+            status_code = str(status.get("code", "")).strip().lower()
+            status_name = str(status.get("name", "")).strip()
+            if status_code in normalized_codes or status_name in normalized_names:
                 return int(status["id"])
-        raise AdminValidationError("Archived status is not configured")
+
+        raise AdminValidationError(error_message)
 
     def _validate_write_payload(self, payload: dict[str, Any]) -> None:
         if not payload.get("title"):
@@ -235,6 +367,7 @@ class AdminService:
             "city_id": raw_location_data.get("city_id"),
             "place_name": (raw_location_data.get("place_name") or "").strip() or None,
             "address_line": (raw_location_data.get("address_line") or "").strip() or None,
+            "accessibility_notes": (raw_location_data.get("accessibility_notes") or "").strip() or None,
         }
 
         return {
@@ -265,6 +398,11 @@ class AdminService:
 
         coordinates = self._geocode_address(address_line)
         if coordinates is None:
+            fallback_address = self._remove_house_number_for_geocoding(address_line)
+            if fallback_address:
+                coordinates = self._geocode_address(fallback_address)
+
+        if coordinates is None:
             raise AdminValidationError("לא ניתן לחשב קואורדינטות עבור הכתובת שסופקה")
 
         latitude, longitude = coordinates
@@ -294,6 +432,33 @@ class AdminService:
             return latitude, longitude
         except (TypeError, ValueError):
             return None
+
+    @staticmethod
+    def _remove_house_number_for_geocoding(address_line: str) -> str | None:
+        """Drop a house-number token from the street segment for a softer geocoding retry."""
+        normalized = " ".join(str(address_line or "").split())
+        if not normalized:
+            return None
+
+        parts = [part.strip() for part in normalized.split(",")]
+        if not parts:
+            return None
+
+        street_part = parts[0]
+        simplified_street = re.sub(
+            r"(?:\bמס['’]?\s*|\bמספר\s+)?\d+[א-תA-Za-z]?(?:/\d+)?\b",
+            "",
+            street_part,
+            count=1,
+        )
+        simplified_street = re.sub(r"\s{2,}", " ", simplified_street).strip(" ,-/")
+
+        if not simplified_street or simplified_street == street_part:
+            return None
+
+        parts[0] = simplified_street
+        fallback_address = ", ".join(part for part in parts if part)
+        return fallback_address if fallback_address and fallback_address != normalized else None
 
     @staticmethod
     def _normalize_list_filters(payload: dict[str, Any]) -> dict[str, Any]:
