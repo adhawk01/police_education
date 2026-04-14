@@ -41,12 +41,6 @@ export class ContentDetailsComponent implements OnDestroy {
   loading = true;
   notFound = false;
   errorMessage = '';
-  aiAccessibilityLoading = false;
-  aiAccessibilityError = '';
-  aiAccessibilityAnswerHtml: SafeHtml | null = null;
-  aiDescriptionLoading = false;
-  aiDescriptionError = '';
-  aiDescriptionAnswerHtml: SafeHtml | null = null;
   private readonly selectedImageIndex = signal(0);
 
   readonly galleryImages = computed(() => {
@@ -99,6 +93,19 @@ export class ContentDetailsComponent implements OnDestroy {
     return images[normalizedIndex] ?? images[0];
   });
 
+  get fullDescriptionText(): string {
+    return this.contentItem?.full_description?.trim() || 'לא הוזן תיאור מלא עבור תוכן זה.';
+  }
+
+  get fullDescriptionHtml(): SafeHtml {
+    return this.renderSimpleMarkdown(this.fullDescriptionText);
+  }
+
+  get accessibilityTextHtml(): SafeHtml {
+    const text = this.contentItem?.accessibility.text?.trim() || '';
+    return this.renderSimpleMarkdown(text);
+  }
+
   constructor() {
     this.route.paramMap
       .pipe(
@@ -143,82 +150,6 @@ export class ContentDetailsComponent implements OnDestroy {
 
   openContent(contentId: number): void {
     void this.router.navigate(['/content', contentId]);
-  }
-
-  askAiForAccessibility(): void {
-    if (!this.contentItem || this.aiAccessibilityLoading) {
-      return;
-    }
-
-    this.aiAccessibilityLoading = true;
-    this.aiAccessibilityError = '';
-    this.aiAccessibilityAnswerHtml = null;
-    this.changeDetectorRef.markForCheck();
-
-    const prompt = this.buildAccessibilityPrompt(this.contentItem);
-
-    this.contentService
-      .askAi(prompt)
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (payload) => {
-          const answer = this.extractAiAnswer(payload);
-
-          if (!answer) {
-            this.aiAccessibilityError = 'לא התקבלה תשובה תקינה ממנוע ה-AI.';
-            this.aiAccessibilityLoading = false;
-            this.changeDetectorRef.markForCheck();
-            return;
-          }
-
-          this.aiAccessibilityAnswerHtml = this.renderSimpleMarkdown(answer);
-          this.aiAccessibilityLoading = false;
-          this.changeDetectorRef.markForCheck();
-        },
-        error: () => {
-          this.aiAccessibilityError = 'לא ניתן לקבל כרגע תשובת AI. נסו שוב בעוד רגע.';
-          this.aiAccessibilityLoading = false;
-          this.changeDetectorRef.markForCheck();
-        }
-      });
-  }
-
-  askAiForDescription(): void {
-    if (!this.contentItem || this.aiDescriptionLoading) {
-      return;
-    }
-
-    this.aiDescriptionLoading = true;
-    this.aiDescriptionError = '';
-    this.aiDescriptionAnswerHtml = null;
-    this.changeDetectorRef.markForCheck();
-
-    const prompt = this.buildGeneralInfoPrompt(this.contentItem);
-
-    this.contentService
-      .askAi(prompt)
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (payload) => {
-          const answer = this.extractAiAnswer(payload);
-
-          if (!answer) {
-            this.aiDescriptionError = 'לא התקבלה תשובה תקינה ממנוע ה-AI.';
-            this.aiDescriptionLoading = false;
-            this.changeDetectorRef.markForCheck();
-            return;
-          }
-
-          this.aiDescriptionAnswerHtml = this.renderSimpleMarkdown(answer);
-          this.aiDescriptionLoading = false;
-          this.changeDetectorRef.markForCheck();
-        },
-        error: () => {
-          this.aiDescriptionError = 'לא ניתן לקבל כרגע תשובת AI. נסו שוב בעוד רגע.';
-          this.aiDescriptionLoading = false;
-          this.changeDetectorRef.markForCheck();
-        }
-      });
   }
 
   private initLocationMap(): void {
@@ -298,12 +229,6 @@ export class ContentDetailsComponent implements OnDestroy {
     this.notFound = false;
     this.errorMessage = '';
     this.contentItem = null;
-    this.aiAccessibilityLoading = false;
-    this.aiAccessibilityError = '';
-    this.aiAccessibilityAnswerHtml = null;
-    this.aiDescriptionLoading = false;
-    this.aiDescriptionError = '';
-    this.aiDescriptionAnswerHtml = null;
     this.selectedImageIndex.set(0);
 
     this.contentService
@@ -337,68 +262,6 @@ export class ContentDetailsComponent implements OnDestroy {
           this.changeDetectorRef.markForCheck();
         }
       });
-  }
-
-  private buildAccessibilityPrompt(item: ContentDetailsResponse): string {
-    const normalizedTitle = item.title.replace(/\s+/g, ' ').trim();
-
-    const prompt =
-      `ענה בעברית בלבד וב MarkDown נקי ללא סימוני קוד. ` +
-      `חפש באתרי אינטרנט רלוונטים וסכם מידע כללי על המקום ודגש על נגישות ל"${normalizedTitle}" ` +
-      `ענה בדיוק במבנה : ## תמונת מצב ## נגישות ## מה לבדוק לפני שמגיעים ומתחת לכל כותרת 2 - 4 סעיפים קצרים ומעשיים`;
-
-    return prompt.length > 400 ? prompt.slice(0, 400) : prompt;
-  }
-
-  private buildGeneralInfoPrompt(item: ContentDetailsResponse): string {
-    const normalizedTitle = item.title.replace(/\s+/g, ' ').trim();
-
-    const prompt =
-      `ענה בעברית בלבד וב MarkDown נקי ללא סימוני קוד. ` +
-      `חפש באתרי אינטרנט רלוונטים וסכם מידע כללי על המקום "${normalizedTitle}". ` +
-      `ענה בדיוק במבנה : ## תמונת מצב ## מה כדאי לדעת לפני שמגיעים ומתחת לכל כותרת 2 - 4 סעיפים קצרים ומעשיים`;
-
-    return prompt.length > 400 ? prompt.slice(0, 400) : prompt;
-  }
-
-  private extractAiAnswer(payload: unknown): string {
-    if (!payload || typeof payload !== 'object') {
-      return '';
-    }
-
-    const response = payload as {
-      answer?: unknown;
-      response?: unknown;
-      text?: unknown;
-      result?: unknown;
-      data?: { answer?: unknown; response?: unknown; text?: unknown };
-    };
-
-    const candidates = [
-      response.answer,
-      response.response,
-      response.text,
-      response.result,
-      response.data?.answer,
-      response.data?.response,
-      response.data?.text
-    ];
-
-    for (const candidate of candidates) {
-      if (typeof candidate === 'string' && candidate.trim()) {
-        return this.normalizeAiAnswer(candidate);
-      }
-    }
-
-    return '';
-  }
-
-  private normalizeAiAnswer(answer: string): string {
-    return answer
-      .replace(/^```(?:markdown|md)?\s*/i, '')
-      .replace(/\s*```\s*$/i, '')
-      .replace(/^```[a-zA-Z]*\s*$/gm, '')
-      .trim();
   }
 
   private renderSimpleMarkdown(markdown: string): SafeHtml {

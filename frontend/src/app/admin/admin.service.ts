@@ -18,6 +18,7 @@ export class AdminService {
   private readonly http = inject(HttpClient);
   private readonly adminBaseUrl = `${apiConfig.baseUrl}/api/admin/content-items`;
   private readonly metadataUrl = `${apiConfig.baseUrl}/api/admin/content-metadata`;
+  private readonly aiAskUrl = `${apiConfig.baseUrl}/api/ai/ask`;
 
   listContentItems(query: AdminListQuery): Observable<AdminListResponse> {
     let params = new HttpParams();
@@ -57,6 +58,18 @@ export class AdminService {
     return this.http.patch<AdminItemDetails>(`${this.adminBaseUrl}/${id}/status`, payload, { withCredentials: true });
   }
 
+  submitForApproval(id: number): Observable<AdminItemDetails> {
+    return this.http.post<AdminItemDetails>(`${this.adminBaseUrl}/${id}/submit-for-approval`, {}, { withCredentials: true });
+  }
+
+  approveContent(id: number): Observable<AdminItemDetails> {
+    return this.http.post<AdminItemDetails>(`${this.adminBaseUrl}/${id}/approve`, {}, { withCredentials: true });
+  }
+
+  deactivateContentItem(id: number): Observable<AdminItemDetails> {
+    return this.http.delete<AdminItemDetails>(`${this.adminBaseUrl}/${id}`, { withCredentials: true });
+  }
+
   getMetadata(): Observable<AdminMetadataResponse> {
     return this.http.get<AdminMetadataResponse>(this.metadataUrl, { withCredentials: true });
   }
@@ -65,5 +78,9 @@ export class AdminService {
     const formData = new FormData();
     formData.append('file', file);
     return this.http.post<{ url: string }>(`${apiConfig.baseUrl}/api/admin/upload-image`, formData, { withCredentials: true });
+  }
+
+  askAi(prompt: string): Observable<unknown> {
+    return this.http.post<unknown>(this.aiAskUrl, { prompt }, { withCredentials: true });
   }
 }
