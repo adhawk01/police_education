@@ -1,13 +1,11 @@
 <section class="admin-page" dir="rtl">
-  <header class="admin-page__header">
-    <div>
-      <p class="admin-page__kicker">ניהול אתר</p>
-      <h1>אזור מנהל תוכן</h1>
-      <p>ניהול תכנים, סינון ועדכון סטטוסים דרך ממשק ניהולי מאובטח.</p>
-    </div>
-
-    <button type="button" class="admin-page__primary-btn" (click)="openCreate()">יצירת תוכן חדש</button>
-  </header>
+  <app-page-hero
+    eyebrow="ניהול אתר"
+    title="אזור מנהל תוכן"
+    subtitle="ניהול תכנים, סינון ועדכון סטטוסים דרך ממשק ניהולי מאובטח."
+  >
+    <button type="button" class="admin-page__hero-btn" pageHeroActions (click)="openCreate()">יצירת תוכן חדש</button>
+  </app-page-hero>
 
   @if (metadataError) {
     <div class="admin-page__notice admin-page__notice--error" role="alert">{{ metadataError }}</div>
@@ -221,7 +219,7 @@
   </section>
 
   @if (editorVisible) {
-    <section class="admin-editor-backdrop" (click)="closeEditor()">
+    <section class="admin-editor-backdrop" (click)="requestClose('backdrop')">
       <section
         class="admin-editor"
         role="dialog"
@@ -231,7 +229,7 @@
       >
         <div class="admin-editor__head">
           <h2>{{ editorMode === 'create' ? 'יצירת תוכן חדש' : 'עריכת תוכן' }}</h2>
-          <button type="button" class="admin-page__secondary-btn" (click)="closeEditor()">סגירה</button>
+          <button type="button" class="admin-page__secondary-btn" (click)="requestClose('close')">סגירה</button>
         </div>
 
         <form class="admin-editor__form" [formGroup]="editorForm" (ngSubmit)="saveItem()">
@@ -452,10 +450,35 @@
             <button type="submit" class="admin-page__primary-btn" [disabled]="savingItem">
               {{ savingItem ? 'שומר...' : editorMode === 'create' ? 'יצירה' : 'שמירה' }}
             </button>
-            <button type="button" class="admin-page__secondary-btn" (click)="closeEditor()">ביטול</button>
+            <button type="button" class="admin-page__secondary-btn" (click)="requestClose('cancel')">ביטול</button>
           </div>
         </form>
       </section>
+
+      @if (confirmDiscardVisible) {
+        <section class="admin-confirm" role="dialog" aria-modal="true" aria-label="אישור סגירה" (click)="$event.stopPropagation()">
+          <h3>יש שינויים שלא נשמרו</h3>
+          <p>
+            @if (canSaveFromClosePrompt) {
+              האם לשמור את השינויים לפני הסגירה?
+            } @else {
+              אם תסגור עכשיו, השינויים שביצעת יאבדו.
+            }
+          </p>
+
+          @if (saveError) {
+            <div class="admin-page__notice admin-page__notice--error" role="alert">{{ saveError }}</div>
+          }
+
+          <div class="admin-confirm__actions">
+            @if (canSaveFromClosePrompt) {
+              <button type="button" class="admin-page__primary-btn" [disabled]="savingItem" (click)="saveAndCloseFromPrompt()">שמור וסגור</button>
+            }
+            <button type="button" class="admin-page__secondary-btn" [disabled]="savingItem" (click)="discardChangesAndClose()">סגור ללא שמירה</button>
+            <button type="button" class="admin-page__secondary-btn" [disabled]="savingItem" (click)="continueEditing()">המשך עריכה</button>
+          </div>
+        </section>
+      }
     </section>
   }
 </section>

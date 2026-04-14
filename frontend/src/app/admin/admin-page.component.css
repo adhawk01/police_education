@@ -5,6 +5,21 @@
   color: #1f2937;
 }
 
+.admin-page__hero-btn {
+  min-height: 40px;
+  border-radius: 10px;
+  border: 1px solid #ffffff;
+  background: #ffffff;
+  color: #1d4ed8;
+  padding: 0 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.admin-page__hero-btn:hover {
+  background: #eff6ff;
+}
+
 .admin-page__header {
   display: flex;
   align-items: flex-start;
@@ -353,6 +368,38 @@
   display: grid;
   place-items: center;
   padding: 16px;
+}
+
+.admin-confirm {
+  position: fixed;
+  inset-inline: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: min(92vw, 520px);
+  margin: 0 auto;
+  background: #ffffff;
+  border: 1px solid #d8e2ec;
+  border-radius: 14px;
+  padding: 16px;
+  box-shadow: 0 24px 64px rgba(15, 23, 42, 0.3);
+  z-index: 140;
+}
+
+.admin-confirm h3 {
+  margin: 0 0 8px;
+}
+
+.admin-confirm p {
+  margin: 0;
+  color: #475569;
+}
+
+.admin-confirm__actions {
+  margin-top: 14px;
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
 }
 
 .admin-editor {

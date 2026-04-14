@@ -14,6 +14,7 @@ import {
   AdminWritePayload,
 } from './admin.models';
 import { AdminService } from './admin.service';
+import { PageHeroComponent } from '../shared/ui/page-hero/page-hero.component';
 
 interface MediaItem {
   media_file_id?: number;
@@ -26,10 +27,12 @@ interface MediaItem {
   local_preview?: string;
 }
 
+type CloseIntent = 'close' | 'cancel' | 'backdrop' | 'escape';
+
 @Component({
   selector: 'app-admin-page',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule],
+  imports: [CommonModule, ReactiveFormsModule, PageHeroComponent],
   templateUrl: './admin-page.component.html',
   styleUrl: './admin-page.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush
@@ -86,6 +89,12 @@ export class AdminPageComponent implements OnInit {
   isDraggingOver = false;
   editorAreaId = '';
   editorCityId = '';
+  confirmDiscardVisible = false;
+  closeIntent: CloseIntent | null = null;
+
+  private initialEditorAreaId = '';
+  private initialEditorCityId = '';
+  private initialMediaSignature = '';
 
   selectedItem: AdminItemDetails | null = null;
   selectedItemId: number | null = null;
@@ -257,6 +266,7 @@ export class AdminPageComponent implements OnInit {
     this.editorAreaId = '';
     this.editorCityId = '';
     this.resetEditorForm();
+    this.captureEditorSnapshot();
   }
 
   openEdit(item: AdminListItem): void {
@@ -271,6 +281,7 @@ export class AdminPageComponent implements OnInit {
     this.editorAreaId = '';
     this.editorCityId = '';
     this.resetEditorForm();
+    this.captureEditorSnapshot();
 
     this.savingItem = true;
     this.adminService.getContentItemById(item.id)
@@ -285,6 +296,7 @@ export class AdminPageComponent implements OnInit {
           this.selectedItem = details;
           this.patchEditorFromDetails(details);
           this.initMediaFromDetails(details);
+          this.captureEditorSnapshot();
         },
         error: (error: unknown) => {
           this.saveError = extractApiErrorMessage(error, 'לא ניתן לטעון את פרטי הפריט לעריכה.');
@@ -293,11 +305,48 @@ export class AdminPageComponent implements OnInit {
   }
 
   closeEditor(): void {
+    this.confirmDiscardVisible = false;
+    this.closeIntent = null;
     this.editorVisible = false;
     this.saveError = '';
     this.editorAreaId = '';
     this.editorCityId = '';
     this.setBodyScrollLock(false);
+  }
+
+  requestClose(intent: CloseIntent): void {
+    if (this.savingItem) {
+      return;
+    }
+
+    if (this.hasPendingEditorChanges()) {
+      this.closeIntent = intent;
+      this.confirmDiscardVisible = true;
+      this.changeDetectorRef.markForCheck();
+      return;
+    }
+
+    this.closeEditor();
+  }
+
+  continueEditing(): void {
+    this.confirmDiscardVisible = false;
+    this.closeIntent = null;
+    this.changeDetectorRef.markForCheck();
+  }
+
+  discardChangesAndClose(): void {
+    this.closeEditor();
+  }
+
+  saveAndCloseFromPrompt(): void {
+    this.closeIntent = 'close';
+    this.confirmDiscardVisible = true;
+    this.saveItem();
+  }
+
+  get canSaveFromClosePrompt(): boolean {
+    return this.closeIntent === 'close';
   }
 
   onEditorAreaChange(rawAreaId: string): void {
@@ -346,7 +395,7 @@ export class AdminPageComponent implements OnInit {
   @HostListener('document:keydown.escape')
   onEscapeKey(): void {
     if (this.editorVisible && !this.savingItem) {
-      this.closeEditor();
+      this.requestClose('escape');
     }
   }
 
@@ -399,6 +448,9 @@ export class AdminPageComponent implements OnInit {
         },
         error: (error: unknown) => {
           this.saveError = extractApiErrorMessage(error, 'שמירת הפריט נכשלה.');
+          if (this.closeIntent === 'close') {
+            this.confirmDiscardVisible = true;
+          }
         }
       });
   }
@@ -781,6 +833,37 @@ export class AdminPageComponent implements OnInit {
         email: this.nullIfEmpty(this.editorForm.controls.email.value),
       }
     };
+  }
+
+  private hasPendingEditorChanges(): boolean {
+    if (this.editorForm.dirty) {
+      return true;
+    }
+
+    if (this.editorAreaId !== this.initialEditorAreaId || this.editorCityId !== this.initialEditorCityId) {
+      return true;
+    }
+
+    return this.currentMediaSignature() !== this.initialMediaSignature;
+  }
+
+  private captureEditorSnapshot(): void {
+    this.editorForm.markAsPristine();
+    this.initialEditorAreaId = this.editorAreaId;
+    this.initialEditorCityId = this.editorCityId;
+    this.initialMediaSignature = this.currentMediaSignature();
+  }
+
+  private currentMediaSignature(): string {
+    return this.mediaItems
+      .map((item) => [
+        item.media_file_id ?? '',
+        item.file_url || '',
+        item.is_primary ? 1 : 0,
+        item.is_new ? 1 : 0,
+        item.to_delete ? 1 : 0,
+      ].join(':'))
+      .join('|');
   }
 
   private buildLocationData(): AdminWritePayload['location_data'] | null {
