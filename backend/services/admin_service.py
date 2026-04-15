@@ -273,6 +273,64 @@ class AdminService:
         except Exception as exc:
             raise AdminServiceError(f"Failed to load admin metadata: {exc}") from exc
 
+    def suggest_web_images(self, query: str, limit: int = 10) -> dict[str, Any]:
+        normalized_query = str(query or "").strip()
+        if len(normalized_query) < 2:
+            raise AdminValidationError("יש להזין ביטוי חיפוש של לפחות 2 תווים")
+
+        safe_limit = min(max(int(limit or 10), 1), 10)
+        api_url = "https://commons.wikimedia.org/w/api.php"
+        params = {
+            "action": "query",
+            "format": "json",
+            "generator": "search",
+            "gsrsearch": f"filetype:bitmap {normalized_query}",
+            "gsrnamespace": "6",
+            "gsrlimit": str(safe_limit),
+            "prop": "imageinfo",
+            "iiprop": "url|extmetadata",
+            "iiurlwidth": "800",
+        }
+        request_url = f"{api_url}?{urlencode(params)}"
+        request = Request(request_url, headers={"User-Agent": "police-education-admin/1.0"})
+
+        try:
+            with urlopen(request, timeout=10) as response:
+                data = json.loads(response.read().decode("utf-8"))
+        except (URLError, TimeoutError, ValueError, json.JSONDecodeError) as exc:
+            raise AdminServiceError("לא ניתן לקבל כרגע הצעות תמונה מהאינטרנט") from exc
+
+        pages = ((data or {}).get("query") or {}).get("pages") or {}
+        suggestions: list[dict[str, Any]] = []
+
+        for page in pages.values():
+            image_info = ((page or {}).get("imageinfo") or [{}])[0] or {}
+            extmetadata = image_info.get("extmetadata") or {}
+            file_url = str(image_info.get("url") or "").strip()
+            preview_url = str(image_info.get("thumburl") or file_url).strip()
+
+            if not file_url:
+                continue
+
+            license_name = ((extmetadata.get("LicenseShortName") or {}).get("value") or "").strip()
+            author_name = ((extmetadata.get("Artist") or {}).get("value") or "").strip()
+
+            suggestions.append(
+                {
+                    "title": str(page.get("title") or "").replace("File:", "", 1),
+                    "file_url": file_url,
+                    "preview_url": preview_url,
+                    "license": license_name or None,
+                    "author": author_name or None,
+                    "source": "Wikimedia Commons",
+                }
+            )
+
+        return {
+            "query": normalized_query,
+            "items": suggestions[:safe_limit],
+        }
+
     def _resolve_archived_status_id(self) -> int:
         return self._resolve_status_id(
             code_candidates=["archived"],

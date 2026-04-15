@@ -1,8 +1,10 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
-import { Observable } from 'rxjs';
+import { Observable, catchError, map, timeout } from 'rxjs';
 import { apiConfig } from '../api.config';
 import {
+  AdminImageSuggestion,
+  AdminImageSuggestionsResponse,
   AdminItemDetails,
   AdminListQuery,
   AdminListResponse,
@@ -19,6 +21,7 @@ export class AdminService {
   private readonly adminBaseUrl = `${apiConfig.baseUrl}/api/admin/content-items`;
   private readonly metadataUrl = `${apiConfig.baseUrl}/api/admin/content-metadata`;
   private readonly aiAskUrl = `${apiConfig.baseUrl}/api/ai/ask`;
+  private readonly imageSuggestionsUrl = `${apiConfig.baseUrl}/api/admin/image-suggestions`;
 
   listContentItems(query: AdminListQuery): Observable<AdminListResponse> {
     let params = new HttpParams();
@@ -82,5 +85,72 @@ export class AdminService {
 
   askAi(prompt: string): Observable<unknown> {
     return this.http.post<unknown>(this.aiAskUrl, { prompt }, { withCredentials: true });
+  }
+
+  getImageSuggestions(query: string, limit = 10): Observable<AdminImageSuggestionsResponse> {
+    const safeLimit = Math.min(Math.max(limit, 1), 10);
+
+    const params = new HttpParams()
+      .set('q', query)
+      .set('limit', String(safeLimit));
+
+    return this.http
+      .get<AdminImageSuggestionsResponse>(this.imageSuggestionsUrl, { params, withCredentials: true })
+      .pipe(
+        timeout(12000),
+        catchError(() => this.getImageSuggestionsFromWikimedia(query, safeLimit))
+      );
+  }
+
+  private getImageSuggestionsFromWikimedia(query: string, limit: number): Observable<AdminImageSuggestionsResponse> {
+    const params = new HttpParams()
+      .set('action', 'query')
+      .set('format', 'json')
+      .set('origin', '*')
+      .set('generator', 'search')
+      .set('gsrsearch', `filetype:bitmap ${query}`)
+      .set('gsrnamespace', '6')
+      .set('gsrlimit', String(limit))
+      .set('prop', 'imageinfo')
+      .set('iiprop', 'url|extmetadata')
+      .set('iiurlwidth', '800');
+
+    return this.http
+      .get<{ query?: { pages?: Record<string, any> } }>('https://commons.wikimedia.org/w/api.php', { params })
+      .pipe(
+        timeout(12000),
+        map((response) => {
+          const pages = response?.query?.pages ?? {};
+          const items = Object.values(pages).reduce<AdminImageSuggestion[]>((acc, page: any) => {
+              const imageInfo = page?.imageinfo?.[0] ?? {};
+              const extmetadata = imageInfo?.extmetadata ?? {};
+              const fileUrl = String(imageInfo?.url ?? '').trim();
+              const previewUrl = String(imageInfo?.thumburl ?? fileUrl).trim();
+              if (!fileUrl) {
+                return acc;
+              }
+
+              const license = String(extmetadata?.LicenseShortName?.value ?? '').trim() || null;
+              const author = String(extmetadata?.Artist?.value ?? '').trim() || null;
+
+              acc.push({
+                title: String(page?.title ?? '').replace('File:', ''),
+                file_url: fileUrl,
+                preview_url: previewUrl,
+                license,
+                author,
+                source: 'Wikimedia Commons',
+              });
+
+              return acc;
+            }, [])
+            .slice(0, limit);
+
+          return {
+            query,
+            items,
+          };
+        })
+      );
   }
 }

@@ -201,3 +201,17 @@ export interface AdminStatusPatchPayload {
   status_id: number;
   is_active?: boolean;
 }
+
+export interface AdminImageSuggestion {
+  title: string;
+  file_url: string;
+  preview_url: string;
+  license?: string | null;
+  author?: string | null;
+  source?: string | null;
+}
+
+export interface AdminImageSuggestionsResponse {
+  query: string;
+  items: AdminImageSuggestion[];
+}
