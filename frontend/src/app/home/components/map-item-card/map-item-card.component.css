@@ -121,6 +121,23 @@
   line-height: 1.55;
 }
 
+.map-item-card__description p {
+  margin: 0 0 6px;
+}
+
+.map-item-card__description h4 {
+  margin: 0 0 6px;
+  font-size: 13px;
+  color: #0f172a;
+}
+
+.map-item-card__description ul {
+  margin: 0;
+  padding-inline-start: 16px;
+  display: grid;
+  gap: 3px;
+}
+
 .map-item-card__description-wrap::-webkit-scrollbar {
   width: 4px;
 }

@@ -6,6 +6,7 @@ import { forkJoin, of } from 'rxjs';
 import { finalize, switchMap, tap } from 'rxjs/operators';
 import { AuthService, extractApiErrorMessage } from '../auth/auth.service';
 import {
+  AdminImageSuggestion,
   AdminItemDetails,
   AdminListItem,
   AdminListQuery,
@@ -118,6 +119,10 @@ export class AdminPageComponent implements OnInit {
   aiAccessibilityLoading = false;
   aiFullDescriptionError = '';
   aiAccessibilityError = '';
+  imageSuggestionsLoading = false;
+  imageSuggestionsError = '';
+  imageSuggestions: AdminImageSuggestion[] = [];
+  selectedSuggestedImageUrls: string[] = [];
 
   page = 1;
   pageSize = 10;
@@ -379,6 +384,10 @@ export class AdminPageComponent implements OnInit {
     this.editorCityId = '';
     this.editorCityName = '';
     this.showCitySuggestions = false;
+    this.imageSuggestionsLoading = false;
+    this.imageSuggestionsError = '';
+    this.imageSuggestions = [];
+    this.selectedSuggestedImageUrls = [];
     this.setBodyScrollLock(false);
   }
 
@@ -629,14 +638,102 @@ export class AdminPageComponent implements OnInit {
             return;
           }
 
-          const existing = this.editorForm.controls.location_accessibility_notes.value.trim();
-          this.editorForm.controls.location_accessibility_notes.setValue(existing ? `${existing}\n\n${answer}` : answer);
+          const accessibilityOnlyAnswer = this.extractAccessibilityOnlyAnswer(answer);
+          if (!accessibilityOnlyAnswer) {
+            this.aiAccessibilityError = 'התשובה שהתקבלה לא הכילה מידע נגישות ממוקד. נסו שוב.';
+            return;
+          }
+
+          // Replace (do not append) so stale sections from older prompts don't remain in the field.
+          this.editorForm.controls.location_accessibility_notes.setValue(accessibilityOnlyAnswer);
           this.editorForm.controls.location_accessibility_notes.markAsDirty();
         },
         error: () => {
           this.aiAccessibilityError = 'לא ניתן לקבל כרגע תשובת AI. נסו שוב בעוד רגע.';
         }
       });
+  }
+
+  fetchImageSuggestionsForMedia(): void {
+    if (this.imageSuggestionsLoading || this.savingItem) {
+      return;
+    }
+
+    const title = this.editorForm.controls.title.value.trim();
+    if (!title) {
+      this.imageSuggestionsError = 'יש להזין כותרת לפני חיפוש תמונות.';
+      this.changeDetectorRef.markForCheck();
+      return;
+    }
+
+    const city = this.editorCityName.trim();
+    const query = city ? `${title} ${city}` : title;
+
+    this.imageSuggestionsLoading = true;
+    this.imageSuggestionsError = '';
+    this.imageSuggestions = [];
+    this.selectedSuggestedImageUrls = [];
+
+    this.adminService.getImageSuggestions(query, 10)
+      .pipe(
+        finalize(() => {
+          this.imageSuggestionsLoading = false;
+          this.changeDetectorRef.markForCheck();
+        })
+      )
+      .subscribe({
+        next: (response) => {
+          this.imageSuggestions = response.items ?? [];
+          if (!this.imageSuggestions.length) {
+            this.imageSuggestionsError = 'לא נמצאו תמונות להצגה עבור החיפוש הזה.';
+          }
+        },
+        error: (error: unknown) => {
+          this.imageSuggestionsError = extractApiErrorMessage(error, 'לא ניתן לקבל כרגע הצעות תמונה.');
+        }
+      });
+  }
+
+  isSuggestedImageSelected(imageUrl: string): boolean {
+    return this.selectedSuggestedImageUrls.includes(imageUrl);
+  }
+
+  toggleSuggestedImageSelection(imageUrl: string, checked: boolean): void {
+    if (checked) {
+      if (!this.selectedSuggestedImageUrls.includes(imageUrl)) {
+        this.selectedSuggestedImageUrls = [...this.selectedSuggestedImageUrls, imageUrl];
+      }
+      return;
+    }
+
+    this.selectedSuggestedImageUrls = this.selectedSuggestedImageUrls.filter((url) => url !== imageUrl);
+  }
+
+  addSuggestedImage(imageUrl: string): void {
+    this.addMediaUrl(imageUrl);
+  }
+
+  addSelectedSuggestedImages(): void {
+    if (!this.selectedSuggestedImageUrls.length) {
+      return;
+    }
+
+    for (const imageUrl of this.selectedSuggestedImageUrls) {
+      this.addMediaUrl(imageUrl);
+    }
+
+    this.selectedSuggestedImageUrls = [];
+    this.changeDetectorRef.markForCheck();
+  }
+
+  onSuggestedImageDragStart(event: DragEvent, imageUrl: string): void {
+    if (!event.dataTransfer) {
+      return;
+    }
+
+    event.dataTransfer.setData('text/uri-list', imageUrl);
+    event.dataTransfer.setData('text/plain', imageUrl);
+    event.dataTransfer.effectAllowed = 'copy';
   }
 
   submitForApproval(): void {
@@ -1144,6 +1241,12 @@ export class AdminPageComponent implements OnInit {
     if (!trimmed) {
       return;
     }
+
+    const alreadyExists = this.mediaItems.some((item) => !item.to_delete && item.file_url.trim() === trimmed);
+    if (alreadyExists) {
+      return;
+    }
+
     this.mediaItems = [
       ...this.mediaItems,
       {
@@ -1187,6 +1290,17 @@ export class AdminPageComponent implements OnInit {
   onMediaDrop(event: DragEvent): void {
     event.preventDefault();
     this.isDraggingOver = false;
+
+    const uri = event.dataTransfer?.getData('text/uri-list')?.trim()
+      || event.dataTransfer?.getData('text/plain')?.trim()
+      || '';
+
+    if (uri.startsWith('http://') || uri.startsWith('https://')) {
+      this.addMediaUrl(uri);
+      this.changeDetectorRef.markForCheck();
+      return;
+    }
+
     if (event.dataTransfer?.files?.length) {
       this.addLocalFiles(event.dataTransfer.files);
     }
@@ -1385,10 +1499,63 @@ export class AdminPageComponent implements OnInit {
     const normalizedTitle = title.replace(/\s+/g, ' ').trim();
     const prompt =
       `ענה בעברית בלבד וב MarkDown נקי ללא סימוני קוד. ` +
-      `חפש באתרי אינטרנט רלוונטים וסכם מידע כללי על המקום ודגש על נגישות ל"${normalizedTitle}". ` +
-      `ענה בדיוק במבנה : ## תמונת מצב ## נגישות ## מה לבדוק לפני שמגיעים ומתחת לכל כותרת 2 - 4 סעיפים קצרים ומעשיים.`;
+      `חפש באתרי אינטרנט רלוונטים וסכם אך ורק מידע נגישות עבור "${normalizedTitle}". ` +
+      `אסור לכלול את הכותרות "תמונת מצב" או "מה לבדוק לפני שמגיעים". ` +
+      `ענה אך ורק במבנה: ## נגישות פיזית ## נגישות שירות, ומתחת לכל כותרת 2-5 סעיפים קצרים.`;
 
     return prompt.length > 450 ? prompt.slice(0, 450) : prompt;
+  }
+
+  private extractAccessibilityOnlyAnswer(answer: string): string {
+    const cleaned = answer.trim();
+    if (!cleaned) {
+      return '';
+    }
+
+    const lines = cleaned.split(/\r?\n/);
+    const filtered: string[] = [];
+    let includeCurrentSection = false;
+
+    const shouldKeepHeading = (line: string): boolean => {
+      const normalized = line.toLowerCase();
+      return normalized.includes('נגישות');
+    };
+
+    for (const rawLine of lines) {
+      const line = rawLine.trim();
+      if (!line) {
+        if (filtered.length && filtered[filtered.length - 1] !== '') {
+          filtered.push('');
+        }
+        continue;
+      }
+
+      if (line.startsWith('##')) {
+        includeCurrentSection = shouldKeepHeading(line);
+        if (includeCurrentSection) {
+          filtered.push(line);
+        }
+        continue;
+      }
+
+      if (includeCurrentSection) {
+        filtered.push(rawLine);
+      }
+    }
+
+    const normalized = filtered.join('\n').trim();
+    if (normalized) {
+      return normalized;
+    }
+
+    // Fallback: keep bullet/paragraph lines that mention accessibility keywords.
+    const accessibilityKeywords = ['נגיש', 'כיסא גלגלים', 'שירותים נגישים', 'מעלית', 'רמפה', 'לקות'];
+    const fallbackLines = lines.filter((line) => {
+      const normalizedLine = line.toLowerCase();
+      return accessibilityKeywords.some((keyword) => normalizedLine.includes(keyword));
+    });
+
+    return fallbackLines.join('\n').trim();
   }
 
   private buildGeneralInfoPrompt(title: string): string {
