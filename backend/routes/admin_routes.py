@@ -233,3 +233,28 @@ def get_admin_content_metadata():
     except Exception:
         return jsonify({"error": "Unexpected server error"}), 500
 
+
+@admin_bp.get("/api/admin/image-suggestions")
+@login_required
+@role_required("site_manager", "admin", permission_code="site_admin")
+def get_admin_image_suggestions():
+    """Return up to 10 suggested web images for admin media picker assistance."""
+    service = AdminService()
+    query = (request.args.get("q") or "").strip()
+    limit_raw = request.args.get("limit")
+
+    try:
+        limit = int(limit_raw) if limit_raw is not None else 10
+    except (TypeError, ValueError):
+        limit = 10
+
+    try:
+        data = service.suggest_web_images(query=query, limit=limit)
+        return jsonify(data), 200
+    except AdminValidationError as exc:
+        return jsonify({"error": str(exc)}), 400
+    except AdminServiceError as exc:
+        return jsonify({"error": str(exc)}), 500
+    except Exception:
+        return jsonify({"error": "Unexpected server error"}), 500
+

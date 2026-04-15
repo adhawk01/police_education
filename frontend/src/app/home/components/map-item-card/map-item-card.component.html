@@ -38,7 +38,7 @@
     }
 
     <div class="map-item-card__description-wrap">
-      <p class="map-item-card__description">{{ description() }}</p>
+      <div class="map-item-card__description" [innerHTML]="descriptionHtml()"></div>
     </div>
   </div>
 </button>
