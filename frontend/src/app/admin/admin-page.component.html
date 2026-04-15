@@ -267,7 +267,77 @@
               class="admin-page__secondary-btn"
               (click)="addMediaUrl(urlInput.value); urlInput.value = ''"
             >הוסף URL</button>
+            <button
+              type="button"
+              class="admin-editor__ai-btn"
+              [disabled]="savingItem || imageSuggestionsLoading"
+              (click)="fetchImageSuggestionsForMedia()"
+              aria-label="מצא תמונות בעזרת AI"
+            >
+              <span class="material-icons" aria-hidden="true">auto_awesome</span>
+              {{ imageSuggestionsLoading ? 'מחפש...' : 'מצא תמונות AI' }}
+            </button>
           </div>
+
+          @if (imageSuggestionsError) {
+            <div class="admin-page__notice admin-page__notice--error" role="alert">{{ imageSuggestionsError }}</div>
+          }
+
+          @if (imageSuggestions.length) {
+            <div class="admin-media__suggestions-head">
+              <span>הצעות תמונה (Wikimedia Commons)</span>
+              <button
+                type="button"
+                class="admin-page__secondary-btn"
+                [disabled]="!selectedSuggestedImageUrls.length"
+                (click)="addSelectedSuggestedImages()"
+              >
+                הוסף נבחרים
+              </button>
+            </div>
+
+            <div class="admin-media__suggestions-grid">
+              @for (suggestion of imageSuggestions; track suggestion.file_url) {
+                <div class="admin-media__suggestion-card">
+                  <div class="admin-media__suggestion-thumb-wrap">
+                    <img
+                      class="admin-media__suggestion-thumb"
+                      [src]="suggestion.preview_url || suggestion.file_url"
+                      [alt]="suggestion.title || 'הצעת תמונה'"
+                      draggable="true"
+                      (dragstart)="onSuggestedImageDragStart($event, suggestion.file_url)"
+                    />
+                  </div>
+
+                  <div class="admin-media__suggestion-meta">
+                    <label class="admin-media__suggestion-select">
+                      <input
+                        type="checkbox"
+                        [checked]="isSuggestedImageSelected(suggestion.file_url)"
+                        (change)="toggleSuggestedImageSelection(suggestion.file_url, $any($event.target).checked)"
+                      />
+                      <span>בחר</span>
+                    </label>
+
+                    <button
+                      type="button"
+                      class="admin-page__secondary-btn"
+                      (click)="addSuggestedImage(suggestion.file_url)"
+                    >
+                      הוסף
+                    </button>
+                  </div>
+
+                  <p class="admin-media__suggestion-title" [title]="suggestion.title">{{ suggestion.title || 'תמונה' }}</p>
+                  @if (suggestion.license || suggestion.source) {
+                    <small class="admin-media__suggestion-license">
+                      {{ suggestion.source || '' }}{{ suggestion.license ? ' · ' + suggestion.license : '' }}
+                    </small>
+                  }
+                </div>
+              }
+            </div>
+          }
 
           <!-- Drag & drop / click to upload -->
           <div
@@ -283,6 +353,7 @@
             </svg>
             <span>גרור תמונות לכאן או <u>לחץ לבחירה</u></span>
             <span class="admin-media__dropzone-hint">PNG, JPG, GIF, WEBP</span>
+            <span class="admin-media__dropzone-hint">אפשר גם לגרור לכאן תמונות מההצעות.</span>
             <input
               #mediaFileInput
               type="file"
@@ -333,11 +404,11 @@
               type="button"
               class="admin-editor__ai-btn"
               [disabled]="savingItem || aiFullDescriptionLoading"
-              aria-label="ניתוח תוכן בעזרת AI"
+              aria-label="מידע כללי בעזרת AI"
               (click)="generateAiForFullDescription()"
             >
               <span class="material-icons" aria-hidden="true">auto_awesome</span>
-              {{ aiFullDescriptionLoading ? 'מנתח...' : 'ניתוח AI' }}
+              {{ aiFullDescriptionLoading ? 'מנתח...' : 'מידע כללי AI' }}
             </button>
           </div>
           <textarea rows="4" formControlName="full_description" placeholder="לא הוזן תיאור מלא"></textarea>
@@ -452,18 +523,19 @@
 
             <div class="admin-editor__full-width admin-editor__ai-field">
               <div class="admin-editor__ai-field-head">
-                <span>נגישות ומידע נוסף</span>
+                <span>נגישות</span>
                 <button
                   type="button"
                   class="admin-editor__ai-btn"
                   [disabled]="savingItem || aiAccessibilityLoading"
-                  aria-label="ניתוח נגישות בעזרת AI"
+                  aria-label="נגישות בעזרת AI"
                   (click)="generateAiForAccessibilityNotes()"
                 >
                   <span class="material-icons" aria-hidden="true">auto_awesome</span>
-                  {{ aiAccessibilityLoading ? 'מנתח...' : 'ניתוח AI' }}
+                  {{ aiAccessibilityLoading ? 'מנתח...' : 'נגישות AI' }}
                 </button>
               </div>
+              <small class="admin-muted">הכפתור מפיק תוכן נגישות בלבד, ללא "תמונת מצב" וללא "מה לבדוק לפני שמגיעים".</small>
               <textarea rows="3" formControlName="location_accessibility_notes" placeholder="אפשר להזין ידנית או להשתמש ב-AI"></textarea>
               @if (aiAccessibilityError) {
                 <small class="admin-editor__ai-field-error" role="alert">{{ aiAccessibilityError }}</small>
